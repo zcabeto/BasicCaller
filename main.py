@@ -63,33 +63,29 @@ def handle_input(Digits: str = Form(...)):
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/conversation")
-async def conversation(Request: Request, CallSid: str = Form(...), SpeechResult: str = Form("")):
+async def conversation(CallSid: str = Form(...), SpeechResult: str = Form("")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
-    
     state = conversation_state.get(CallSid, {})
-    if 'name' not in state:
-        # store name for reuse
-        state['name'] = SpeechResult or "Caller"
-        conversation_state[CallSid] = state
-        
-        # ask for issue description
-        resp.say(f"Hi {state['name']}, please describe your issue after the beep.")
-        resp.record(
-            transcribe=True,
-            transcribe_callback="https://basic-caller.onrender.com/transcription",
-            max_length=120,
-            play_beep=True
-        )
-        resp.hangup()
-    else:
-        resp.say("Thank you, goodbye!")
-        resp.hangup()
+    
+    # store name for reuse
+    state['name'] = SpeechResult or "Caller"
+    conversation_state[CallSid] = state
+    
+    # ask for issue description
+    resp.say(f"Hi {state['name']}, please describe your issue after the beep.")
+    resp.record(
+        transcribe=True,
+        transcribe_callback="https://basic-caller.onrender.com/transcription",
+        max_length=120,
+        play_beep=True
+    )
+    resp.hangup()
     
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), RecordingUrl: str = Form("")):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form("")):
     """create transcription and store the issue"""
     state = conversation_state.get(CallSid, {})
     
