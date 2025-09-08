@@ -21,10 +21,10 @@ issues_store: List[CallData] = []
 log_store = []
 
 # Twilio webhook: what to do when call is answered
-@app.api_route("/voice", methods=["GET", "POST"])
+@app.post("/voice")
 def voice():
     resp = VoiceResponse()
-    resp.say("Hello world!")
+    resp.say("Thank you for calling Threat Spike Labs. Leave your name and any issues you wish to talk about after the beep.")
     resp.record(
         transcribe=True,
         transcribe_callback="https://basic-caller.onrender.com/transcription",
