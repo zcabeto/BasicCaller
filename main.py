@@ -9,6 +9,7 @@ app = FastAPI()
 
 class CallData(BaseModel):
     name: str
+    number: str
     title: str
     description: str
     priority: str
