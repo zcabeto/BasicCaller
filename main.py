@@ -35,7 +35,7 @@ def voice():
     resp.say("Hello world!")
     resp.record(
         transcribe=True,
-        transcribe_callback="https://78678fb66d33.ngrok-free.app/transcription",
+        transcribe_callback="https://basic-caller.onrender.com/transcription",
         max_length=120,
         play_beep=True
     )
