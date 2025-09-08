@@ -18,21 +18,12 @@ class CallData(BaseModel):
 # thread-safe in-memory store
 store_lock = threading.Lock()
 issues_store: List[CallData] = []
-log_store = []
-example_issue = CallData(
-        name="caller",  # could map from phone number if needed
-        title="Phone Call Issue",
-        description="caller wanted to say hello",
-        priority="none",
-        raw_transcription="hey, I am the caller"
-    )
-issues_store.append(example_issue)
 
-# Twilio webhook: what to do when call is answered
-@app.api_route("/voice", methods=["GET", "POST"])
+# Twilio webhook: speak & listen on the call
+@app.post("/voice")
 def voice():
     resp = VoiceResponse()
-    resp.say("Hello world!")
+    resp.say("Hello and thank you for calling Threat Spike Labs! Please leave your name and issues after the beep. If this is an urgent message start the call by saying the word urgent and we will transfer this call, otherwise we will get back to you soon.")
     resp.record(
         transcribe=True,
         transcribe_callback="https://basic-caller.onrender.com/transcription",
@@ -42,7 +33,7 @@ def voice():
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
-# Twilio webhook: transcription result
+# Twilio webhook: transcription from audio
 @app.post("/transcription")
 async def transcription(
     CallSid: str = Form(...),
@@ -66,7 +57,7 @@ async def transcription(
 @app.get("/poll/")
 def poll():
     with store_lock:
-        return {"issues": issues_store, "log": log_store}
+        return {"issues": issues_store}
 
 # poll and refresh the issue-stores
 @app.get("/poll_and_clear/")
