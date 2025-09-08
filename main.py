@@ -71,7 +71,8 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form("")):
     
     # store name for reuse
     state['name'] = SpeechResult or "Caller"
-    conversation_state[CallSid] = state
+    with store_lock:
+        conversation_state[CallSid] = state
     
     # ask for issue description
     resp.say(f"Hi {state['name']}, please describe your issue after the beep.")
@@ -88,19 +89,20 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form("")):
 @app.post("/transcription")
 async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form("")):
     """create transcription and store the issue"""
-    state = conversation_state.get(CallSid, {})
-    
-    issue = CallData(
-        name=state.get('name', "(empty)"),
-        number=From,
-        title="Inbound Phone Call",
-        description=TranscriptionText or "(empty)",
-        priority="medium",
-        raw_transcription=TranscriptionText or "(empty)"
-    )
-    
     with store_lock:
+        state = conversation_state.get(CallSid, {})
+        
+        issue = CallData(
+            name=state.get('name', "(empty)"),
+            number=From,
+            title="Inbound Phone Call",
+            description=TranscriptionText or "(empty)",
+            priority="medium",
+            raw_transcription=TranscriptionText or "(empty)"
+        )
+    
         issues_store.append(issue)
+        conversation_state.pop(CallSid, None)
     
     return {"status": "saved"}
 
