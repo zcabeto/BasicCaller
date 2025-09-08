@@ -23,11 +23,17 @@ conversation_state = {}  # key: CallSid, value: dict with keys 'name'
 
 @app.post("/voice")
 def voice():
-    """Initial call greeting"""
     resp = VoiceResponse()
-    
-    # Ask the caller for their name
-    resp.say("Hello! What is your name?")
+    resp.say("Thank you for calling Threat Spike Labs! " \
+        "If your call is urgent and you need to be handed to a member of staff, please press star. " \
+        "Otherwise, please hold.")
+    resp.gather(
+        input="dtmf",
+        num_digits=1,
+        action="https://basic-caller.onrender.com/handle_input",
+        timeout=5
+    )
+    resp.say("Your issue has been registered as not urgent. Before you explain this issue, please provide your first and last name.")
     resp.gather(
         input="speech",
         action="https://basic-caller.onrender.com/conversation",
@@ -36,6 +42,18 @@ def voice():
     )
     resp.say("We did not receive any input. Goodbye.")
     resp.hangup()
+    return Response(content=str(resp), media_type="text/xml")
+
+@app.post("/handle_input")
+def handle_input(Digits: str = Form(...)):
+    """Only triggers if star (*) is pressed"""
+    resp = VoiceResponse()
+    if Digits == "*":
+        resp.say("Connecting you to a staff member now.")
+        resp.hangup()
+    else:
+        resp.hangup()
+    
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/conversation")
@@ -85,7 +103,7 @@ async def transcription(
     issue = CallData(
         name=caller_name,
         title="Inbound Phone Call",
-        description=TranscriptionText or "(no transcription)",
+        description=TranscriptionText or "(empty)",
         priority="medium",
         raw_transcription=TranscriptionText or "(empty)"
     )
