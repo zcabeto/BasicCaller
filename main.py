@@ -64,16 +64,17 @@ def handle_input(Digits: str = Form(...)):
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/conversation")
-async def conversation(CallSid: str = Form(...), SpeechResult: str = Form("")):
+async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
-    state = conversation_state.get(CallSid, {})
-    
-    # store name for reuse
-    state['name'] = SpeechResult or "Caller"
+
     with store_lock:
+        state = conversation_state.get(CallSid, {})
+        # always store number & number
+        state['number'] = From
+        state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
         conversation_state[CallSid] = state
-    
+
     # ask for issue description
     resp.say(f"Hi {state['name']}, please describe your issue after the beep.")
     resp.record(
@@ -86,24 +87,25 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form("")):
     
     return Response(content=str(resp), media_type="text/xml")
 
+
 @app.post("/transcription")
 async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form("")):
     """create transcription and store the issue"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        
+
         issue = CallData(
-            name=state.get('name', "(empty)"),
-            number=From,
+            name=state.get('name', "Caller"),
+            number=state.get('number', From),
             title="Inbound Phone Call",
             description=TranscriptionText or "(empty)",
             priority="medium",
             raw_transcription=TranscriptionText or "(empty)"
         )
-    
         issues_store.append(issue)
+        # clear state after storing
         conversation_state.pop(CallSid, None)
-    
+
     return {"status": "saved"}
 
 @app.get("/poll/")
