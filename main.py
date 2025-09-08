@@ -55,6 +55,8 @@ def handle_input(Digits: str = Form(...)):
     resp = VoiceResponse()
     if Digits == "*":
         resp.say("Connecting you to a staff member now.")
+        with resp.dial(caller_id="+447367616944"):  # optional: use your Twilio number as caller ID
+            resp.number("+447873665370")
         resp.hangup()
     else:
         # note for later that this hangup just sends it back so we can make a loop with the conversation_state via this
