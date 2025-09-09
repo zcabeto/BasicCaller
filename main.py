@@ -145,10 +145,10 @@ async def callback_summary(original_SID: str = Query(...), caller: str = "", des
     """Twilio fetches this when the user answers the callback"""
     resp = VoiceResponse()
     resp.say(
-        f"Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='2s'/>"
+        f"<speak>Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='2s'/>"
         f"We recorded your issue as the following: <break time='1s'/> {desc}. "
         "If this you made this call, please press 1. <break time='1s'/> If this summary is incorrect, press 2. <break time='1s'/>"
-        "If you did not call us, press 3 to reject this call entirely."
+        "If you did not call us, press 3 to reject this call entirely.</speak>"
     )
     resp.gather(
         input="dtmf",
@@ -183,7 +183,7 @@ async def confirm_issue(original_SID: str = Query(...), Digits: str = Form(...))
         resp.say("Okay, please describe your issue again after the beep.")
         resp.record(
             transcribe=True,
-            transcribe_callback="https://basic-caller.onrender.com/transcription",
+            transcribe_callback=f"https://basic-caller.onrender.com/transcription?overwritten_issue_SID={original_SID}",
             max_length=120,
             play_beep=True
         )
