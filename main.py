@@ -66,6 +66,7 @@ def voice(From: str = Form(...), CallSid: str = Form(...)):
         method="POST",
         timeout=10
     )
+    return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/handle_input")
 def handle_input(Digits: str = Form(...)):
