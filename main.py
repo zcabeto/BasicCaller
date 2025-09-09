@@ -133,11 +133,6 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
                 )
             )
         background_tasks.add_task(initiate_callback)
-    else:    # outbound second-time calls automatically taken
-        with store_lock:
-            issues_store.append(issue)
-            conversation_state.pop(CallSid, None)
-
     return {"status": "saved"}
 
 @app.post("/callback_summary")
