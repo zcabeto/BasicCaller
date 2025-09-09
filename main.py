@@ -117,7 +117,6 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
             priority=summary['priority'],
             raw_transcription=(TranscriptionText or "(empty)")
         )
-        # clear state after storing
         conversation_state[CallSid] = state
 
     if TWILIO_NUMBER and From and Direction == "inbound":
@@ -129,14 +128,14 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
                     f"https://basic-caller.onrender.com/callback_summary"
                     f"?caller={quote_plus(state['pending_issue'].name)}"
                     f"&desc={quote_plus(state['pending_issue'].description)}"
-                    f"&CallSid={CallSid}"
+                    f"&original_SID={CallSid}"
                 )
             )
         background_tasks.add_task(initiate_callback)
     return {"status": "saved"}
 
 @app.post("/callback_summary")
-async def callback_summary(CallSid: str = Form(...), caller: str = "", desc: str = ""):
+async def callback_summary(original_SID: str = Query(...), caller: str = "", desc: str = ""):
     """Twilio fetches this when the user answers the callback"""
     resp = VoiceResponse()
     resp.say(
@@ -149,7 +148,7 @@ async def callback_summary(CallSid: str = Form(...), caller: str = "", desc: str
     resp.gather(
         input="dtmf",
         num_digits=1,
-        action=f"https://basic-caller.onrender.com/confirm_issue?CallSid={CallSid}",
+        action=f"https://basic-caller.onrender.com/confirm_issue?original_SID={original_SID}",
         method="POST",
         timeout=5
     )
@@ -158,11 +157,11 @@ async def callback_summary(CallSid: str = Form(...), caller: str = "", desc: str
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/confirm_issue")
-async def confirm_issue(CallSid: str = Query(...), Digits: str = Form(...)):
+async def confirm_issue(original_SID: str = Query(...), Digits: str = Form(...)):
     """Confirm or reject the recorded issue"""
     resp = VoiceResponse()
     with store_lock:
-        state = conversation_state.get(CallSid, {})
+        state = conversation_state.get(original_SID, {})
         pending_issue = state.get("pending_issue")
     if not pending_issue:
         resp.say("We could not find your issue. Goodbye.")
