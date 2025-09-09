@@ -4,16 +4,9 @@ from pydantic import BaseModel
 from typing import List
 import threading
 from twilio.twiml.voice_response import VoiceResponse
-from twilio.rest import Client
 import random
-import os
 
 app = FastAPI()
-
-TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
-twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
 class CallData(BaseModel):
     name: str
