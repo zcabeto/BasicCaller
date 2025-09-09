@@ -4,8 +4,15 @@ from pydantic import BaseModel
 from typing import List
 import threading
 from twilio.twiml.voice_response import VoiceResponse
+from twilio.rest import Client
+import random
 
 app = FastAPI()
+
+TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
 class CallData(BaseModel):
     name: str
@@ -22,7 +29,8 @@ conversation_state = {}
 
 @app.post("/voice")
 def voice():
-    """initial call start, filter urgent messages and then get name to move on with"""
+    """initial call start, filter urgent messages and then check number"""
+    # filter urgent messages
     resp = VoiceResponse()
     resp.say(
         "Thank you for calling Threat Spike Labs! " \
@@ -35,19 +43,28 @@ def voice():
         action="https://basic-caller.onrender.com/handle_input",
         timeout=5
     )
+
+    # authenticate phone number
+    code = random.randint(100000, 999999)
+    with store_lock:
+        conversation_state[CallSid] = {"verification_code": code, "number": From}
+    if TWILIO_NUMBER:
+        twilio_client.messages.create(
+            body=f"Your Threat Spike Labs verification code is: {code}",
+            from_=TWILIO_NUMBER,
+            to=From
+        )
     resp.say(
-        "Your issue has been registered as not urgent. " \
-        "Before you explain this issue, please provide your first and last name."
+        "We have sent a 6 digit verification code to your phone by text message. "
+        "Please enter that code on your keypad now."
     )
     resp.gather(
-        input="speech",
-        action="https://basic-caller.onrender.com/conversation",
+        input="dtmf",
+        num_digits=6,
+        action="https://basic-caller.onrender.com/verify_code_and_ask_name",
         method="POST",
-        timeout=5
+        timeout=10
     )
-    resp.say("We did not receive any input. Goodbye.")
-    resp.hangup()
-    return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/handle_input")
 def handle_input(Digits: str = Form(...)):
@@ -62,6 +79,32 @@ def handle_input(Digits: str = Form(...)):
         # just have to make the timeout a bit more dynamic but this works as an initial thought
         resp.hangup()
     
+    return Response(content=str(resp), media_type="text/xml")
+
+@app.post("/verify_code_and_ask_name")
+async def verify_code_and_ask_name(CallSid: str = Form(...), Digits: str = Form("")):
+    """verify the SMS code entered, then ask name"""
+    resp = VoiceResponse()
+
+    with store_lock:
+        state = conversation_state.get(CallSid, {})
+        expected = state.get("verification_code")
+    if expected and Digits == expected:
+        resp.say("Verification successful. Thank you.")
+        resp.say(
+            "Before you explain this issue, please provide your first and last name."
+        )
+        resp.gather(
+            input="speech",
+            action="https://basic-caller.onrender.com/conversation",
+            method="POST",
+            timeout=5
+        )
+        resp.say("We did not receive any input. Goodbye.")
+        resp.hangup()
+    else:
+        resp.say("Verification failed. Goodbye.")
+        resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/conversation")
