@@ -29,7 +29,7 @@ issues_store: List[CallData] = []
 conversation_state = {}
 
 @app.post("/voice")
-def voice():
+def voice(From: str = Form(...), CallSid: str = Form(...)):
     """initial call start, filter urgent messages and then check number"""
     # filter urgent messages
     resp = VoiceResponse()
