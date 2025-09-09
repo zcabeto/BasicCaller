@@ -122,6 +122,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
         else:    # transcription of second-try call
             state = conversation_state.get(overwritten_issue_SID, {})
             assert "pending_issue" in state
+            state['pending_issue'].raw_transcription = TranscriptionText
             issues_store.append(state['pending_issue'])
             conversation_state.pop(overwritten_issue_SID, None)
 
@@ -145,9 +146,9 @@ async def callback_summary(original_SID: str = Query(...), caller: str = "", des
     """Twilio fetches this when the user answers the callback"""
     resp = VoiceResponse()
     resp.say(
-        f"<speak>Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='2s'/>"
-        f"We recorded your issue as the following: <break time='1s'/> {desc}. "
-        "If this you made this call, please press 1. <break time='1s'/> If this summary is incorrect, press 2. <break time='1s'/>"
+        f"<speak>Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='1s'/>"
+        f"We recorded your issue as the following: <break time='0.5s'/> {desc}. "
+        "If this you made this call, please press 1. <break time='0.3s'/> If this summary is incorrect, press 2. <break time='0.3s'/>"
         "If you did not call us, press 3 to reject this call entirely.</speak>"
     )
     resp.gather(
