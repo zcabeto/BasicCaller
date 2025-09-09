@@ -171,7 +171,7 @@ async def confirm_issue(original_SID: str = Query(...), Digits: str = Form(...))
     if Digits == "1":           # accept issue
         with store_lock:
             issues_store.append(pending_issue)
-            conversation_state.pop(CallSid, None)
+            conversation_state.pop(original_SID, None)
         resp.say("Thank you. Your issue has been recorded.")
         resp.hangup()
     elif Digits == "2":       # retry description
@@ -185,7 +185,7 @@ async def confirm_issue(original_SID: str = Query(...), Digits: str = Form(...))
         resp.hangup()
     elif Digits == "3":        # discard
         with store_lock:
-            conversation_state.pop(CallSid, None)
+            conversation_state.pop(original_SID, None)
         resp.say("Your previous issue has been discarded. Goodbye.")
         resp.hangup()
     else:                      # wrong number entered
@@ -193,7 +193,7 @@ async def confirm_issue(original_SID: str = Query(...), Digits: str = Form(...))
         resp.gather(
             input="dtmf",
             num_digits=1,
-            action=f"https://basic-caller.onrender.com/confirm_issue?CallSid={CallSid}",
+            action=f"https://basic-caller.onrender.com/confirm_issue?original_SID={original_SID}",
             method="POST",
             timeout=5
         )
