@@ -96,7 +96,7 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
 
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None, Direction: str = Form("inbound")):
     """create transcription and store the issue"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
@@ -119,19 +119,23 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
         # clear state after storing
         conversation_state[CallSid] = state
 
-    if TWILIO_NUMBER and From:
+    if TWILIO_NUMBER and From and Direction == "inbound":
         def initiate_callback():
             twilio_client.calls.create(
                 to=From,
                 from_=TWILIO_NUMBER,
                 url=(
                     f"https://basic-caller.onrender.com/callback_summary"
-                    f"?caller={state['pending_issue']['name']}"
-                    f"&desc={state['pending_issue']['description']}"
+                    f"?caller={state['pending_issue'].name}"
+                    f"&desc={state['pending_issue'].description}"
                     f"&CallSid={CallSid}"
                 )
             )
         background_tasks.add_task(initiate_callback)
+    else:    # outbound second-time calls automatically taken
+        with store_lock:
+            issues_store.append(issue)
+            conversation_state.pop(CallSid, None)
 
     return {"status": "saved"}
 
@@ -169,7 +173,7 @@ async def confirm_issue(CallSid: str = Query(...), Digits: str = Form(...)):
         resp.hangup()
         return Response(content=str(resp), media_type="text/xml")
 
-    if Digits == "1":       # accept issue
+    if Digits == "1":           # accept issue
         with store_lock:
             issues_store.append(pending_issue)
             conversation_state.pop(CallSid, None)
@@ -184,12 +188,12 @@ async def confirm_issue(CallSid: str = Query(...), Digits: str = Form(...)):
             play_beep=True
         )
         resp.hangup()
-    elif Digits == "3":
+    elif Digits == "3":        # discard
         with store_lock:
             conversation_state.pop(CallSid, None)
         resp.say("Your previous issue has been discarded. Goodbye.")
         resp.hangup()
-    else:
+    else:                      # wrong number entered
         resp.say("Invalid input. Press 1 to accept, 2 to re-record, or 3 to reject.")
         resp.gather(
             input="dtmf",
