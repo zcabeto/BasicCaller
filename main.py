@@ -97,27 +97,33 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
 
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None, Direction: str = Form("inbound")):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None, Direction: str = Form("inbound"), overwritten_issue_SID: str = Query(None):
     """create transcription and store the issue"""
     with store_lock:
-        state = conversation_state.get(CallSid, {})
-
-        summary = {
-            "title": "Uncategorized Call",
-            "description": TranscriptionText,
-            "priority": "unknown"
-        }
-        # summary = generate_summary(TranscriptionText)
-
-        state['pending_issue'] = CallData(
-            name=state.get('name', "Caller"),
-            number=state.get('number', From),
-            title=summary['title'],
-            description=summary['description'],
-            priority=summary['priority'],
-            raw_transcription=(TranscriptionText or "(empty)")
-        )
-        conversation_state[CallSid] = state
+        if not overwritten_issue_SID:    # initial call
+            state = conversation_state.get(CallSid, {})
+    
+            summary = {
+                "title": "Uncategorized Call",
+                "description": TranscriptionText,
+                "priority": "unknown"
+            }
+            # summary = generate_summary(TranscriptionText)
+            
+            state['pending_issue'] = CallData(
+                name=state.get('name', "Caller"),
+                number=state.get('number', From),
+                title=summary['title'],
+                description=summary['description'],
+                priority=summary['priority'],
+                raw_transcription=(TranscriptionText or "(empty)")
+            )
+            conversation_state[CallSid] = state
+        else:    # transcription of second-try call
+            state = conversation_state(overwritten_issue_SID)
+            assert "pending_issue" in state
+            issues_store.append(state['pending_issue'])
+            conversation_state.pop(overwritten_issue_SID, None)
 
     if TWILIO_NUMBER and From and Direction == "inbound":
         def initiate_callback():
@@ -139,11 +145,10 @@ async def callback_summary(original_SID: str = Query(...), caller: str = "", des
     """Twilio fetches this when the user answers the callback"""
     resp = VoiceResponse()
     resp.say(
-        f"Hello {unquote_plus(caller)}. We are calling you back to authenticate a call you recently placed registering an issue."
-        f"We recorded your issue as the following: {unquote_plus(desc)}. "
-        "If this is correct and you made this call, please press 1."
-        "If you did call us describing an issue but this does summary does not represent it, please press 2 to record it again."
-        "If you did not register any such issue, press 3 to reject this call entirely."
+        f"Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='2s'/>"
+        f"We recorded your issue as the following: <break time='1s'/> {desc}. "
+        "If this you made this call, please press 1. <break time='1s'/> If this summary is incorrect, press 2. <break time='1s'/>"
+        "If you did not call us, press 3 to reject this call entirely."
     )
     resp.gather(
         input="dtmf",
