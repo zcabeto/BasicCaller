@@ -120,7 +120,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
             )
             conversation_state[CallSid] = state
         else:    # transcription of second-try call
-            state = conversation_state(overwritten_issue_SID)
+            state = conversation_state.get(overwritten_issue_SID, {})
             assert "pending_issue" in state
             issues_store.append(state['pending_issue'])
             conversation_state.pop(overwritten_issue_SID, None)
