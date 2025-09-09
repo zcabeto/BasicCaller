@@ -1,10 +1,15 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, BackgroundTasks, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List
 import threading
 from twilio.twiml.voice_response import VoiceResponse
-import random
+from twilio.rest import Client
+import os
+TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
 app = FastAPI()
 
@@ -78,7 +83,7 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
         conversation_state[CallSid] = state
 
     # ask for issue description
-    resp.say(f"Hi {state['name']}, please describe your issue after the beep.")
+    resp.say(f"Hi {state['name']}, please describe your issue after the beep. Once you are done, please hang up and we will call you back shortly to authenticate your number and check a summary of the issue you described.")
     resp.record(
         transcribe=True,
         transcribe_callback="https://basic-caller.onrender.com/transcription",
@@ -91,24 +96,111 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
 
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form("")):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None):
     """create transcription and store the issue"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
 
-        issue = CallData(
-            name=state.get('name', "Caller"),
-            number=state.get('number', From),
-            title="Inbound Phone Call",
-            description=TranscriptionText or "(empty)",
-            priority="medium",
-            raw_transcription=TranscriptionText or "(empty)"
+        summary = {
+            "title": "Uncategorized Call",
+            "description": TranscriptionText,
+            "priority": "unknown"
+        }
+        # summary = generate_summary(TranscriptionText)
+
+        state['pending_issue'] = CallData(
+            name=state.get('name', "Caller").replace("&","and"),
+            number=state.get('number', From).replace("&","and"),
+            title=summary['title'].replace("&","and"),
+            description=summary['description'].replace("&","and"),
+            priority=summary['priority'].replace("&","and"),
+            raw_transcription=(TranscriptionText or "(empty)").replace("&","and")
         )
-        issues_store.append(issue)
         # clear state after storing
-        conversation_state.pop(CallSid, None)
+        conversation_state[CallSid] = state
+
+    if TWILIO_NUMBER and From:
+        def initiate_callback():
+            twilio_client.calls.create(
+                to=From,
+                from_=TWILIO_NUMBER,
+                url=(
+                    f"https://basic-caller.onrender.com/callback_summary"
+                    f"?caller={state['pending_issue']['name']}"
+                    f"&desc={state['pending_issue']['description']}"
+                    f"&CallSid={CallSid}"
+                )
+            )
+        background_tasks.add_task(initiate_callback)
 
     return {"status": "saved"}
+
+@app.post("/callback_summary")
+async def callback_summary(CallSid: str = Form(...), caller: str = "", desc: str = ""):
+    """Twilio fetches this when the user answers the callback"""
+    resp = VoiceResponse()
+    resp.say(
+        f"Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue."
+        f"We recorded your issue as the following: {desc}. "
+        "If this is correct and you made this call, please press 1."
+        "If you did call us describing an issue but this does summary does not represent it, please press 2 to record it again."
+        "If you did not register any such issue, press 3 to reject this call entirely."
+    )
+    resp.gather(
+        input="dtmf",
+        num_digits=1,
+        action=f"https://basic-caller.onrender.com/confirm_issue?CallSid={CallSid}",
+        method="POST",
+        timeout=5
+    )
+    resp.say("We did not receive any input. Goodbye.")
+    resp.hangup()
+    return Response(content=str(resp), media_type="text/xml")
+
+@app.post("/confirm_issue")
+async def confirm_issue(CallSid: str = Query(...), Digits: str = Form(...)):
+    """Confirm or reject the recorded issue"""
+    resp = VoiceResponse()
+    with store_lock:
+        state = conversation_state.get(CallSid, {})
+        pending_issue = state.get("pending_issue")
+    if not pending_issue:
+        resp.say("We could not find your issue. Goodbye.")
+        resp.hangup()
+        return Response(content=str(resp), media_type="text/xml")
+
+    if Digits == "1":       # accept issue
+        with store_lock:
+            issues_store.append(pending_issue)
+            conversation_state.pop(CallSid, None)
+        resp.say("Thank you. Your issue has been recorded.")
+        resp.hangup()
+    elif Digits == "2":       # retry description
+        resp.say("Okay, please describe your issue again after the beep.")
+        resp.record(
+            transcribe=True,
+            transcribe_callback="https://basic-caller.onrender.com/transcription",
+            max_length=120,
+            play_beep=True
+        )
+        resp.hangup()
+    elif Digits == "3":
+        with store_lock:
+            conversation_state.pop(CallSid, None)
+        resp.say("Your previous issue has been discarded. Goodbye.")
+        resp.hangup()
+    else:
+        resp.say("Invalid input. Press 1 to accept, 2 to re-record, or 3 to reject.")
+        resp.gather(
+            input="dtmf",
+            num_digits=1,
+            action=f"https://basic-caller.onrender.com/confirm_issue?CallSid={CallSid}",
+            method="POST",
+            timeout=5
+        )
+        resp.say("We did not receive any input. Goodbye.")
+        resp.hangup()
+    return Response(content=str(resp), media_type="text/xml")
 
 @app.get("/poll/")
 def poll():
