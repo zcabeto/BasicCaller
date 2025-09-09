@@ -6,6 +6,7 @@ import threading
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
 import os
+from urllib.parse import quote_plus, unquote_plus
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
@@ -109,12 +110,12 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
         # summary = generate_summary(TranscriptionText)
 
         state['pending_issue'] = CallData(
-            name=state.get('name', "Caller").replace("&","and"),
-            number=state.get('number', From).replace("&","and"),
-            title=summary['title'].replace("&","and"),
-            description=summary['description'].replace("&","and"),
-            priority=summary['priority'].replace("&","and"),
-            raw_transcription=(TranscriptionText or "(empty)").replace("&","and")
+            name=state.get('name', "Caller"),
+            number=state.get('number', From),
+            title=summary['title'],
+            description=summary['description'],
+            priority=summary['priority'],
+            raw_transcription=(TranscriptionText or "(empty)")
         )
         # clear state after storing
         conversation_state[CallSid] = state
@@ -126,8 +127,8 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
                 from_=TWILIO_NUMBER,
                 url=(
                     f"https://basic-caller.onrender.com/callback_summary"
-                    f"?caller={state['pending_issue'].name}"
-                    f"&desc={state['pending_issue'].description}"
+                    f"?caller={quote_plus(state['pending_issue'].name)}"
+                    f"&desc={quote_plus(state['pending_issue'].description)}"
                     f"&CallSid={CallSid}"
                 )
             )
@@ -144,8 +145,8 @@ async def callback_summary(CallSid: str = Form(...), caller: str = "", desc: str
     """Twilio fetches this when the user answers the callback"""
     resp = VoiceResponse()
     resp.say(
-        f"Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue."
-        f"We recorded your issue as the following: {desc}. "
+        f"Hello {unquote_plus(caller)}. We are calling you back to authenticate a call you recently placed registering an issue."
+        f"We recorded your issue as the following: {unquote_plus(desc)}. "
         "If this is correct and you made this call, please press 1."
         "If you did call us describing an issue but this does summary does not represent it, please press 2 to record it again."
         "If you did not register any such issue, press 3 to reject this call entirely."
