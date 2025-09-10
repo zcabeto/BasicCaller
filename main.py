@@ -142,6 +142,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown"), system_issue: str = Form("False")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
+    print('sys_issue:', system_issue, type(system_issue))
     if system_issue == "True":
         with store_lock:
             state = conversation_state.get(CallSid, {})
