@@ -82,14 +82,12 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
     """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
 
-    # Save caller info
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['number'] = From
         state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
         conversation_state[CallSid] = state
 
-    # Ask for issue type
     issue_gather = resp.gather(
         input="dtmf",
         num_digits=1,
@@ -110,7 +108,6 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
 def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     resp = VoiceResponse()
 
-    # Only check Digits if present (from the DTMF gather)
     if Digits:
         with store_lock:
             state = conversation_state.get(CallSid, {})
@@ -119,18 +116,25 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 
     state = conversation_state.get(CallSid, {})
 
-    # If systems, record system info asynchronously
     if state.get("issue_type") == "systems":
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
-        resp.record(
-            transcribe=True,
-            transcribe_callback="https://basic-caller.onrender.com/explain_issue",
-            max_length=30,
-            play_beep=True,
-            timeout=5,
-            speech_timeout="auto"
+        urgency_gather = resp.gather(
+            input="dtmf",
+            num_digits=1,
+            action="https://basic-caller.onrender.com/urgent_call",
+            timeout=3
         )
-        # DO NOT check Digits here — Twilio posts transcription asynchronously
+        urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call.mp3")
+        system_gather = resp.gather(
+            input="speech",
+            action="https://basic-caller.onrender.com/explain_issue",
+            method="POST",
+            timeout=3
+        )
+        system_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
+        
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+        resp.redirect("https://basic-caller.onrender.com/voice")
+        resp.hangup()
     elif state.get("issue_type") in ["scheduling", "general"]:
         resp.redirect("/explain_issue")
     else:
@@ -142,15 +146,13 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 
 
 @app.post("/explain_issue")
-async def explain_issue(CallSid: str = Form(...), TranscriptionText: str = Form(""), From: str = Form("Unknown")):
+async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """Handle system info transcription and ask for main issue description"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
-
-        # Save system info if the previous step was systems
         if state.get("issue_type") == "systems":
-            if state.get("issue_type") == "systems" and TranscriptionText:
-                state['system_info'] = TranscriptionText
+            if state.get("issue_type") == "systems" and SpeechResult:
+                state['system_info'] = SpeechResult
                 conversation_state[CallSid] = state
 
     # Now ask for main issue description
