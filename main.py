@@ -221,6 +221,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
             name=state.get('name', "Caller"),
             number=state.get('number', From),
             system_info=state.get('system_info', "no device information"),
+            issue_type=state.get('issue_type', 'system'),
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
