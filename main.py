@@ -98,7 +98,7 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
     return Response(content=str(resp), media_type="text/xml")
 
 ## GENERATE SUMMARY OF TRANSCRIPTION
-def execute_prompt(prompt: str):
+async def execute_prompt(prompt: str):
     resp = await openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -109,7 +109,7 @@ def execute_prompt(prompt: str):
     )
     return resp.choices[0].message.content.strip()
 
-def generate_summary(transcription_text: CallData):
+async def generate_summary(transcription_text: CallData):
     prompt = f"""You are logging customer support phone calls. The customer has called and explained an issue.
     Caller transcription:
     "{transcription_text}"
