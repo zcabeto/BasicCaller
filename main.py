@@ -16,10 +16,13 @@ TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = FastAPI()
+company_names = ["ThreatSpike Labs"]
+num_to_company = {"+447808289493": 0}
 
 class CallData(BaseModel):
     name: str
     number: str
+    company: str
     title: str
     description: str
     priority: str
@@ -34,24 +37,20 @@ conversation_state = {}
 def voice():
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
-    resp.say(
-        "Thank you for calling Threat Spike Labs! " \
-        "If your call is urgent and you need to be handed to a member of staff, please press star. " \
-        "Otherwise, please hold."
-    )
-    resp.gather(
+    urgency_gather = resp.gather(
         input="dtmf",
         num_digits=1,
-        action="https://basic-caller.onrender.com/handle_input",
-        timeout=5
+        action="https://basic-caller.onrender.com/urgent_call",
+        timeout=3
     )
-    resp.say(
-        "Your issue has been registered as not urgent. " \
-        "Before you explain this issue, please provide your first and last name."
+    urgency_gather.say(
+        "Thank you for calling Threat Spike Labs! " \
+        "If your call is urgent and you need to be handed to a member of staff, please press star. " \
+        "Otherwise, please start by providing your first and last name."
     )
     resp.gather(
         input="speech",
-        action="https://basic-caller.onrender.com/conversation",
+        action="https://basic-caller.onrender.com/device_info",
         method="POST",
         timeout=3
     )
@@ -59,8 +58,8 @@ def voice():
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/handle_input")
-def handle_input(Digits: str = Form(...)):
+@app.post("/urgent_call")
+def urgent_call(Digits: str = Form(...)):
     """only triggers if star (*) is pressed"""
     resp = VoiceResponse()
     if Digits == "*":
@@ -74,8 +73,30 @@ def handle_input(Digits: str = Form(...)):
     
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/conversation")
-async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
+@app.post("/device_info")
+def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
+    """ask the caller for information about their system and location"""
+    resp = VoiceResponse()
+
+    with store_lock:
+        state = conversation_state.get(CallSid, {})
+        state['number'] = From
+        state['company'] = company_names[num_to_company[From]]
+        state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
+        conversation_state[CallSid] = state
+    
+    # get system specs
+    resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
+    resp.record(
+        input="speech",
+        action="https://basic-caller.onrender.com/explain_issue",
+        method="POST",
+        timeout=10
+    )
+    return Response(content=str(resp), media_type="text/xml")
+
+@app.post("/explain_issue")
+async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
 
@@ -87,7 +108,7 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
         conversation_state[CallSid] = state
 
     # ask for issue description
-    resp.say(f"Hi {state['name']}, please describe your issue after the beep. Once you are done, please hang up and we will call you back shortly to authenticate your number and check a summary of the issue you described.")
+    resp.say(f"Thank you. After the beep, please describe any issues you are having. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a created ticket.")
     resp.record(
         transcribe=True,
         transcribe_callback="https://basic-caller.onrender.com/transcription",
@@ -95,7 +116,6 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
         play_beep=True
     )
     resp.hangup()
-    
     return Response(content=str(resp), media_type="text/xml")
 
 ## GENERATE SUMMARY OF TRANSCRIPTION
@@ -136,12 +156,13 @@ async def generate_summary(transcription_text: CallData):
         ai_output = json.loads(content)
         ai_result = ai_output
     except json.JSONDecodeError:
-        return default
+        ai_result = default
     required_keys = {"title", "description", "priority"}
     if not isinstance(ai_output, dict) or set(ai_output.keys()) != required_keys:
         return default
-    return ai_output
+    return ai_result
 
+## CREATE AND CHECK TRANSCRIPTION
 @app.post("/transcription")
 async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None, Direction: str = Form("inbound"), overwritten_issue_SID: str = Query(None)):
     """create transcription and store the issue"""
@@ -154,17 +175,23 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
                 "description": TranscriptionText,
                 "priority": "unknown"
             }
-            summary = await generate_summary(TranscriptionText)
+            #summary = await generate_summary(TranscriptionText)
             
             state['pending_issue'] = CallData(
                 name=state.get('name', "Caller"),
                 number=state.get('number', From),
+                company=state.get('company', "Unknown Company"),
                 title=summary['title'],
                 description=summary['description'],
                 priority=summary['priority'],
                 raw_transcription=(TranscriptionText or "(empty)")
             )
             conversation_state[CallSid] = state
+
+            # DO NOT CALL BACK
+            issues_store.append(state['pending_issue'])
+            conversation_state.pop(overwritten_issue_SID, None)
+            return {"status": "saved"}
         else:    # transcription of second-try call
             state = conversation_state.get(overwritten_issue_SID, {})
             assert "pending_issue" in state
@@ -187,6 +214,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
         background_tasks.add_task(initiate_callback)
     return {"status": "saved"}
 
+## CHECK SUMMARY WITH CALLBACK (retired)
 @app.post("/callback_summary")
 async def callback_summary(original_SID: str = Query(...), caller: str = "", desc: str = ""):
     """Twilio fetches this when the user answers the callback"""
@@ -199,8 +227,8 @@ async def callback_summary(original_SID: str = Query(...), caller: str = "", des
         timeout=5
     )
     option_gather.say(
-        f"<speak>Hello {caller}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='1s'/>"
-        f"We recorded your issue as the following: <break time='0.5s'/> {desc}. "
+        f"<speak>Hello {unquote_plus(caller)}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='1s'/>"
+        f"We recorded your issue as the following: <break time='0.5s'/> {unquote_plus(desc)}. "
         "If this you made this call, please press 1. <break time='0.3s'/> If this summary is incorrect, press 2. <break time='0.3s'/>"
         "If you did not call us, press 3 to reject this call entirely.</speak>"
     )
@@ -253,6 +281,8 @@ async def confirm_issue(original_SID: str = Query(...), Digits: str = Form(...))
         resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
+
+## ALLOW PULL FROM SERVER
 @app.get("/poll/")
 def poll():
     with store_lock:
