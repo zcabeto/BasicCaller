@@ -16,14 +16,12 @@ TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = FastAPI()
-company_names = ["ThreatSpike Labs"]
-num_to_company = {"+447808289493": 0}
 
 class CallData(BaseModel):
     name: str
     number: str
-    company: str
     system_info: str
+    issue_type: str
     title: str
     description: str
     priority: str
@@ -52,7 +50,7 @@ def voice():
     #resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
     name_gather = resp.gather(
         input="speech",
-        action="https://basic-caller.onrender.com/device_info",
+        action="https://basic-caller.onrender.com/issue_type",
         method="POST",
         timeout=3
     )
@@ -78,27 +76,63 @@ def urgent_call(Digits: str = Form(...)):
     
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/device_info")
-def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
+@app.post("/issue_type")
+def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """ask the caller for information about their system and location"""
     resp = VoiceResponse()
 
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['number'] = From
-        state['company'] = company_names[num_to_company[From]]
         state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
         conversation_state[CallSid] = state
-    
-    # get system specs
-    #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
-    resp.gather(
-        input="speech",
-        action="https://basic-caller.onrender.com/explain_issue",
-        method="POST",
+
+    issue_gather = resp.gather(
+        input="dtmf",
+        num_digits=1,
+        action="https://basic-caller.onrender.com/issue_resolve",
         timeout=3
     )
+    issue_gather.say("<speak>For computer or security issues, press 1. <break time='0.3s'/> For scheduling issues, press 2. <break time='0.3s'/> For general queries, press 3.</speak>")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+    resp.hangup()
+    return Response(content=str(resp), media_type="text/xml")
+
+@app.post("/issue_resolve")
+def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
+    # get system specs
+    #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
+    resp = VoiceResponse()
+    with store_lock:
+        state = conversation_state.get(CallSid, {})
+        state['issue_type'] = "systems" if Digits == "1" else ("scheduling" if Digits == "2" else "general")
+        conversation_state[CallSid] = state
+    if Digits == "1":
+        sysinfo_gather = resp.gather(
+            input="speech",
+            action="https://basic-caller.onrender.com/explain_issue",
+            method="POST",
+            timeout=3
+        )
+        sysinfo_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
+    elif Digits in ["2", "3"]:    # skip to explanation without asking system info
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/explain_issue.mp3")
+        resp.record(
+            transcribe=True,
+            transcribe_callback="https://basic-caller.onrender.com/transcription",
+            max_length=120,
+            play_beep=True
+        )
+    else:                      # wrong number entered -> loop
+        resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
+        resp.gather(
+            input="dtmf",
+            num_digits=1,
+            action=f"https://basic-caller.onrender.com/issue_resolve",
+            method="POST",
+            timeout=5
+        )
+        resp.say("We did not receive any input. Goodbye.")
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     resp.hangup()
@@ -108,7 +142,6 @@ def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From
 async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
-
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['system_info'] = SpeechResult if SpeechResult else 'failed to record speech'
@@ -175,120 +208,26 @@ async def generate_summary(transcription_text: CallData):
 async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None, Direction: str = Form("inbound"), overwritten_issue_SID: str = Query(None)):
     """create transcription and store the issue"""
     with store_lock:
-        if not overwritten_issue_SID:    # initial call
-            state = conversation_state.get(CallSid, {})
-    
-            summary = {
-                "title": "Uncategorized Call",
-                "description": TranscriptionText,
-                "priority": "unknown"
-            }
-            #summary = await generate_summary(TranscriptionText)
-            
-            state['pending_issue'] = CallData(
-                name=state.get('name', "Caller"),
-                number=state.get('number', From),
-                company=state.get('company', "Unknown Company"),
-                system_info=state.get('system_info', "no device information"),
-                title=summary['title'],
-                description=summary['description'],
-                priority=summary['priority'],
-                raw_transcription=(TranscriptionText or "(empty)")
-            )
-            conversation_state[CallSid] = state
+        state = conversation_state.get(CallSid, {})
 
-            # DO NOT CALL BACK
-            issues_store.append(state['pending_issue'])
-            conversation_state.pop(overwritten_issue_SID, None)
-            return {"status": "saved"}
-        else:    # transcription of second-try call
-            state = conversation_state.get(overwritten_issue_SID, {})
-            assert "pending_issue" in state
-            state['pending_issue'].raw_transcription = TranscriptionText
-            issues_store.append(state['pending_issue'])
-            conversation_state.pop(overwritten_issue_SID, None)
-
-    if TWILIO_NUMBER and From and Direction == "inbound":
-        def initiate_callback():
-            twilio_client.calls.create(
-                to=From,
-                from_=TWILIO_NUMBER,
-                url=(
-                    f"https://basic-caller.onrender.com/callback_summary"
-                    f"?caller={quote_plus(state['pending_issue'].name)}"
-                    f"&desc={quote_plus(state['pending_issue'].description)}"
-                    f"&original_SID={CallSid}"
-                )
-            )
-        background_tasks.add_task(initiate_callback)
-    return {"status": "saved"}
-
-## CHECK SUMMARY WITH CALLBACK (retired)
-@app.post("/callback_summary")
-async def callback_summary(original_SID: str = Query(...), caller: str = "", desc: str = ""):
-    """Twilio fetches this when the user answers the callback"""
-    resp = VoiceResponse()
-    option_gather = resp.gather(
-        input="dtmf",
-        num_digits=1,
-        action=f"https://basic-caller.onrender.com/confirm_issue?original_SID={original_SID}",
-        method="POST",
-        timeout=5
-    )
-    option_gather.say(
-        f"<speak>Hello {unquote_plus(caller)}. We are calling you back to authenticate a call you recently placed registering an issue. <break time='1s'/>"
-        f"We recorded your issue as the following: <break time='0.5s'/> {unquote_plus(desc)}. "
-        "If this you made this call, please press 1. <break time='0.3s'/> If this summary is incorrect, press 2. <break time='0.3s'/>"
-        "If you did not call us, press 3 to reject this call entirely.</speak>"
-    )
-    resp.say("We did not receive any input. Goodbye.")
-    resp.hangup()
-    return Response(content=str(resp), media_type="text/xml")
-
-@app.post("/confirm_issue")
-async def confirm_issue(original_SID: str = Query(...), Digits: str = Form(...)):
-    """Confirm or reject the recorded issue"""
-    resp = VoiceResponse()
-    with store_lock:
-        state = conversation_state.get(original_SID, {})
-        pending_issue = state.get("pending_issue")
-    if not pending_issue:
-        resp.say("We could not find your issue. Goodbye.")
-        resp.hangup()
-        return Response(content=str(resp), media_type="text/xml")
-
-    if Digits == "1":           # accept issue
-        with store_lock:
-            issues_store.append(pending_issue)
-            conversation_state.pop(original_SID, None)
-        resp.say("Thank you. Your issue has been recorded.")
-        resp.hangup()
-    elif Digits == "2":       # retry description
-        resp.say("Okay, please describe your issue again after the beep.")
-        resp.record(
-            transcribe=True,
-            transcribe_callback=f"https://basic-caller.onrender.com/transcription?overwritten_issue_SID={original_SID}",
-            max_length=120,
-            play_beep=True
+        summary = {
+            "title": "Uncategorized Call",
+            "description": TranscriptionText,
+            "priority": "unknown"
+        }
+        #summary = await generate_summary(TranscriptionText)
+        
+        state['issue'] = CallData(
+            name=state.get('name', "Caller"),
+            number=state.get('number', From),
+            system_info=state.get('system_info', "no device information"),
+            title=summary['title'],
+            description=summary['description'],
+            priority=summary['priority'],
+            raw_transcription=(TranscriptionText or "(empty)")
         )
-        resp.hangup()
-    elif Digits == "3":        # discard
-        with store_lock:
-            conversation_state.pop(original_SID, None)
-        resp.say("Your previous issue has been discarded. Goodbye.")
-        resp.hangup()
-    else:                      # wrong number entered
-        resp.say("Invalid input. Press 1 to accept, 2 to re-record, or 3 to reject.")
-        resp.gather(
-            input="dtmf",
-            num_digits=1,
-            action=f"https://basic-caller.onrender.com/confirm_issue?original_SID={original_SID}",
-            method="POST",
-            timeout=5
-        )
-        resp.say("We did not receive any input. Goodbye.")
-        resp.hangup()
-    return Response(content=str(resp), media_type="text/xml")
+        issues_store.append(state['issue'])
+        return {"status": "saved"}
 
 
 ## ALLOW PULL FROM SERVER
