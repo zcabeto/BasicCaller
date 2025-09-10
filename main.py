@@ -79,7 +79,7 @@ def urgent_call(Digits: str = Form(...)):
 
 @app.post("/issue_type")
 def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
-    """ask the caller for information about their system and location"""
+    """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
 
     with store_lock:
@@ -92,31 +92,43 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         input="dtmf",
         num_digits=1,
         action="https://basic-caller.onrender.com/issue_resolve",
-        timeout=3
+        timeout=5
     )
-    issue_gather.say("<speak>For computer or security issues, press 1. <break time='0.3s'/> For scheduling issues, press 2. <break time='0.3s'/> For general queries, press 3.</speak>")    
+    issue_gather.say(
+        "<speak>"
+        "For computer or security issues, press 1. "
+        "<break time='0.3s'/> For scheduling issues, press 2. "
+        "<break time='0.3s'/> For general queries, press 3."
+        "</speak>"
+    )
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_resolve")
-def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
-    # get system specs
-    #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
+def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
+    """Handle the issue type chosen by the caller"""
     resp = VoiceResponse()
+
+    if not Digits:  # timeout or no input
+        resp.say("We did not receive any input.")
+        resp.redirect("https://basic-caller.onrender.com/issue_type")
+        return Response(content=str(resp), media_type="text/xml")
+
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['issue_type'] = "systems" if Digits == "1" else ("scheduling" if Digits == "2" else "general")
         print('input:', Digits, state['issue_type'])
         conversation_state[CallSid] = state
+
     if Digits == "1":
         sysinfo_gather = resp.gather(
             input="speech",
             action="https://basic-caller.onrender.com/explain_issue",
             method="POST",
             timeout=10,
-            speechTimeout="auto" 
+            speechTimeout="auto"
         )
         sysinfo_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
-    elif Digits in ["2", "3"]:    # skip to explanation without asking system info
+    elif Digits in ["2", "3"]:  # skip to explanation without asking system info
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/explain_issue.mp3")
         resp.record(
             transcribe=True,
@@ -124,11 +136,13 @@ def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
             max_length=120,
             play_beep=True
         )
-    else:                      # wrong number entered -> loop
+    else:  # invalid digit -> loop
         resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
         resp.redirect("https://basic-caller.onrender.com/issue_type")
+
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
+
 
 @app.post("/explain_issue")
 async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
