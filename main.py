@@ -111,7 +111,7 @@ async def execute_prompt(prompt: str):
         )
     except Exception as e:
         print(f"OpenAI error: {e}")
-        return 0
+        return "fail"
     return resp.choices[0].message.content.strip()
 
 async def generate_summary(transcription_text: CallData):
