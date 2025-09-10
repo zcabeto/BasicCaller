@@ -23,6 +23,7 @@ class CallData(BaseModel):
     name: str
     number: str
     company: str
+    system_info: str
     title: str
     description: str
     priority: str
@@ -91,7 +92,7 @@ def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From
         input="speech",
         action="https://basic-caller.onrender.com/explain_issue",
         method="POST",
-        timeout=10
+        timeout=5
     )
     return Response(content=str(resp), media_type="text/xml")
 
@@ -102,9 +103,7 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
 
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        # always store number & number
-        state['number'] = From
-        state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
+        state['system_info'] = SpeechResult if SpeechResult else 'no device information'
         conversation_state[CallSid] = state
 
     # ask for issue description
@@ -181,6 +180,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
                 name=state.get('name', "Caller"),
                 number=state.get('number', From),
                 company=state.get('company', "Unknown Company"),
+                system_info=state.get('system_info', "no device information")
                 title=summary['title'],
                 description=summary['description'],
                 priority=summary['priority'],
