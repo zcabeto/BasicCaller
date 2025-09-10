@@ -53,7 +53,7 @@ def voice():
         input="speech",
         action="https://basic-caller.onrender.com/conversation",
         method="POST",
-        timeout=5
+        timeout=3
     )
     resp.say("We did not receive any input. Goodbye.")
     resp.hangup()
