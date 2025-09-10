@@ -44,10 +44,11 @@ def voice():
         action="https://basic-caller.onrender.com/urgent_call",
         timeout=3
     )
-    urgency_gather.say(
+    """urgency_gather.say(
         "Thank you for calling Threat Spike Labs! " \
         "If your call is urgent and you need to be handed to a member of staff, please press star. "
-    )
+    )"""
+    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call-p2.mp3")
     resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
     resp.gather(
         input="speech",
