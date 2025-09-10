@@ -96,7 +96,8 @@ def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From
         input="speech",
         action="https://basic-caller.onrender.com/explain_issue",
         method="POST",
-        timeout=5
+        timeout=3,
+        play_beep=False
     )
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
