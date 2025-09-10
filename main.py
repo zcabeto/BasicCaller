@@ -50,13 +50,14 @@ def voice():
     )"""
     urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call.mp3")
     #resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
-    resp.gather(
+    name_gather = resp.gather(
         input="speech",
         action="https://basic-caller.onrender.com/device_info",
         method="POST",
         timeout=3
     )
+    name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
+    
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
@@ -91,13 +92,15 @@ def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From
     
     # get system specs
     #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
-    resp.gather(
+    sysinfo_gather = resp.gather(
         input="speech",
         action="https://basic-caller.onrender.com/explain_issue",
         method="POST",
-        timeout=3
+        timeout=5,
+        bargeIn=True
     )
+    sysinfo_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
+    
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
