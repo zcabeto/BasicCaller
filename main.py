@@ -99,14 +99,18 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
 
 ## GENERATE SUMMARY OF TRANSCRIPTION
 async def execute_prompt(prompt: str):
-    resp = await openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are an assistant that extracts structured information from call transcripts."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0
-    )
+    try:
+        resp = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an assistant that extracts structured information from call transcripts."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0
+        )
+    except Exception as e:
+        print(f"OpenAI error: {e}")
+        return default
     return resp.choices[0].message.content.strip()
 
 async def generate_summary(transcription_text: CallData):
