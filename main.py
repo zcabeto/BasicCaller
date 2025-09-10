@@ -92,12 +92,11 @@ def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From
     # get system specs
     #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
-    resp.record(
+    resp.gather(
         input="speech",
         action="https://basic-caller.onrender.com/explain_issue",
         method="POST",
-        timeout=3,
-        play_beep=False
+        timeout=3
     )
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
