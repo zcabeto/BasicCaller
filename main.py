@@ -117,13 +117,6 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     state = conversation_state.get(CallSid, {})
 
     if state.get("issue_type") == "systems":
-        urgency_gather = resp.gather(
-            input="dtmf",
-            num_digits=1,
-            action="https://basic-caller.onrender.com/urgent_call",
-            timeout=3
-        )
-        urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call.mp3")
         system_gather = resp.gather(
             input="speech",
             action="https://basic-caller.onrender.com/explain_issue",
