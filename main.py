@@ -108,7 +108,7 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
 
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        state['system_info'] = SpeechResult if SpeechResult else 'no device information'
+        state['system_info'] = SpeechResult if SpeechResult else 'failed to record speech'
         conversation_state[CallSid] = state
 
     # ask for issue description
