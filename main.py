@@ -133,8 +133,6 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     else:  # invalid digit -> loop
         resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
         resp.redirect("https://basic-caller.onrender.com/issue_type")
-
-    resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
 
