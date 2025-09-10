@@ -110,7 +110,7 @@ def execute_prompt(prompt: str):
     return resp.choices[0].message.content.strip()
 
 def generate_summary(transcription_text: CallData):
-    prompt = f'You are logging customer support phone calls. The customer has called and explained an issue.
+    prompt = f"""You are logging customer support phone calls. The customer has called and explained an issue.
     Caller transcription:
     "{transcription_text}"
 
@@ -119,7 +119,7 @@ def generate_summary(transcription_text: CallData):
         "title": "...",
         "description": "...",
         "priority": "urgent|high|medium|low|none"
-    '
+    """
     default = {
         "title": "Uncategorized Call",
         "description": transcription_text,
@@ -153,7 +153,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
                 "description": TranscriptionText,
                 "priority": "unknown"
             }
-            # summary = generate_summary(TranscriptionText)
+            summary = generate_summary(TranscriptionText)
             
             state['pending_issue'] = CallData(
                 name=state.get('name', "Caller"),
