@@ -105,10 +105,10 @@ def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
     # get system specs
     #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
     resp = VoiceResponse()
-    print(Digits)
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['issue_type'] = "systems" if Digits == "1" else ("scheduling" if Digits == "2" else "general")
+        print('input:', Digits, state['issue_type'])
         conversation_state[CallSid] = state
     if Digits == "1":
         sysinfo_gather = resp.gather(
