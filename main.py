@@ -57,7 +57,7 @@ def voice():
         method="POST",
         timeout=3
     )
-    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
