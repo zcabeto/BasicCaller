@@ -110,7 +110,7 @@ async def execute_prompt(prompt: str):
         )
     except Exception as e:
         print(f"OpenAI error: {e}")
-        return default
+        return 0
     return resp.choices[0].message.content.strip()
 
 async def generate_summary(transcription_text: CallData):
@@ -129,17 +129,13 @@ async def generate_summary(transcription_text: CallData):
         "description": transcription_text,
         "priority": "unknown"
     }
+    ai_result = default
     content = await execute_prompt(prompt)
     try:
         ai_output = json.loads(content)
         ai_result = ai_output
     except json.JSONDecodeError:
-        retry_content = await ask_model("Return ONLY valid JSON to this question...\n"+prompt)
-        try:
-            ai_output = json.loads(retry_content)
-            ai_result = ai_output
-        except json.JSONDecodeError:
-            return default
+        return default
     required_keys = {"title", "description", "priority"}
     if not isinstance(ai_output, dict) or set(ai_output.keys()) != required_keys:
         return default
