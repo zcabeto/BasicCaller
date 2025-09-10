@@ -8,6 +8,7 @@ from twilio.rest import Client
 import os
 from openai import AsyncOpenAI
 from urllib.parse import quote_plus, unquote_plus
+import json
 
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
