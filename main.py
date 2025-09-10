@@ -45,9 +45,9 @@ def voice():
     )
     urgency_gather.say(
         "Thank you for calling Threat Spike Labs! " \
-        "If your call is urgent and you need to be handed to a member of staff, please press star. " \
-        "Otherwise, please start by providing your first and last name."
+        "If your call is urgent and you need to be handed to a member of staff, please press star. "
     )
+    resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
     resp.gather(
         input="speech",
         action="https://basic-caller.onrender.com/device_info",
