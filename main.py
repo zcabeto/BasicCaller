@@ -108,39 +108,35 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
 
 @app.post("/issue_resolve")
 def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
-    """Handle the issue type chosen by the caller"""
     resp = VoiceResponse()
 
-    if not Digits:  # timeout or no input
-        resp.say("We did not receive any input.")
-        resp.redirect("https://basic-caller.onrender.com/issue_type")
-        return Response(content=str(resp), media_type="text/xml")
+    # Only check Digits if present (from the DTMF gather)
+    if Digits:
+        with store_lock:
+            state = conversation_state.get(CallSid, {})
+            state['issue_type'] = "systems" if Digits == "1" else ("scheduling" if Digits == "2" else "general")
+            conversation_state[CallSid] = state
 
-    # Save issue type
-    with store_lock:
-        state = conversation_state.get(CallSid, {})
-        state['issue_type'] = "systems" if Digits == "1" else ("scheduling" if Digits == "2" else "general")
-        conversation_state[CallSid] = state
-        print('input:', Digits, state['issue_type'])
+    state = conversation_state.get(CallSid, {})
 
-    if Digits == "1":
-        # System info: record asynchronously
+    # If systems, record system info asynchronously
+    if state.get("issue_type") == "systems":
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
         resp.record(
             transcribe=True,
-            transcribe_callback="https://basic-caller.onrender.com/explain_issue",
+            transcribe_callback="/explain_issue",
             max_length=30,
             play_beep=True,
             timeout=5,
             speech_timeout="auto"
         )
-        # DO NOT hang up or redirect here
-    elif Digits in ["2", "3"]:
-        # Skip system info, go straight to main issue description
-        resp.redirect("https://basic-caller.onrender.com/explain_issue")
+        # DO NOT check Digits here — Twilio posts transcription asynchronously
+    elif state.get("issue_type") in ["scheduling", "general"]:
+        resp.redirect("/explain_issue")
     else:
+        # Only for truly invalid DTMF input
         resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
-        resp.redirect("https://basic-caller.onrender.com/issue_type")
+        resp.redirect("/issue_type")
 
     return Response(content=str(resp), media_type="text/xml")
 
