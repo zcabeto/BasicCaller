@@ -120,14 +120,13 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
         conversation_state[CallSid] = state
 
     if Digits == "1":
-        sysinfo_gather = resp.gather(
-            input="speech",
-            action="https://basic-caller.onrender.com/explain_issue",
-            method="POST",
-            timeout=10,
-            speechTimeout="auto"
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
+        resp.record(
+            transcribe=True,
+            transcribe_callback="https://basic-caller.onrender.com/explain_issue",
+            max_length=30,   # seconds
+            play_beep=True
         )
-        sysinfo_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
     elif Digits in ["2", "3"]:  # skip to explanation without asking system info
         resp.redirect("https://basic-caller.onrender.com/explain_issue")
     else:  # invalid digit -> loop
@@ -137,13 +136,13 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 
 
 @app.post("/explain_issue")
-async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
+async def explain_issue(CallSid: str = Form(...), TranscriptionText: str = Form(""), From: str = Form("Unknown")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
     with store_lock:
         state = conversation_state.get(CallSid, {})
         if state["issue_type"]=="systems":
-            state['system_info'] = SpeechResult if SpeechResult else 'failed to record speech'
+            state['system_info'] = TranscriptionText if TranscriptionText else 'failed to record speech'
             conversation_state[CallSid] = state
 
     # ask for issue description
