@@ -93,23 +93,25 @@ def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From
     # get system specs
     #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
-    resp.record(
-        transcribe=True,
-        transcribe_callback="https://basic-caller.onrender.com/explain_issue",
-        timeout=5
+    resp.gather(
+        input="speech",
+        action="https://basic-caller.onrender.com/explain_issue",
+        method="POST",
+        timeout=3
     )
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+    resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/explain_issue")
-async def explain_issue(CallSid: str = Form(...), TranscriptionText: str = Form(""), From: str = Form("Unknown")):
+async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
 
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        state['system_info'] = TranscriptionText if TranscriptionText else 'failed to record speech'
+        state['system_info'] = SpeechResult if SpeechResult else 'failed to record speech'
         conversation_state[CallSid] = state
 
     # ask for issue description
