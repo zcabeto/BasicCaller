@@ -48,15 +48,16 @@ def voice():
         "Thank you for calling Threat Spike Labs! " \
         "If your call is urgent and you need to be handed to a member of staff, please press star. "
     )"""
-    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call-p2.mp3")
-    resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
+    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call.mp3")
+    #resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
     resp.gather(
         input="speech",
         action="https://basic-caller.onrender.com/device_info",
         method="POST",
         timeout=3
     )
-    resp.say("We did not receive any input. Goodbye.")
+    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
@@ -65,7 +66,8 @@ def urgent_call(Digits: str = Form(...)):
     """only triggers if star (*) is pressed"""
     resp = VoiceResponse()
     if Digits == "*":
-        resp.say("Connecting you to a staff member now.")
+        #resp.say("Connecting you to a staff member now.")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/transfer_call.mp3")
         dial = resp.dial(caller_id="+447367616944")
         dial.number("+447873665370")
     else:
@@ -88,13 +90,15 @@ def get_device_info(CallSid: str = Form(...), SpeechResult: str = Form(""), From
         conversation_state[CallSid] = state
     
     # get system specs
-    resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
+    #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
     resp.record(
         input="speech",
         action="https://basic-caller.onrender.com/explain_issue",
         method="POST",
         timeout=5
     )
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/explain_issue")
@@ -108,7 +112,8 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
         conversation_state[CallSid] = state
 
     # ask for issue description
-    resp.say(f"Thank you. After the beep, please describe any issues you are having. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a created ticket.")
+    #resp.say(f"Thank you. After the beep, please describe any issues you are having. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a created ticket.")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/explain_issue.mp3")
     resp.record(
         transcribe=True,
         transcribe_callback="https://basic-caller.onrender.com/transcription",
