@@ -126,7 +126,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
         system_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
         
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-        resp.redirect("https://basic-caller.onrender.com/voice")
+        resp.redirect("https://basic-caller.onrender.com/issue_resolve")
         resp.hangup()
     elif state.get("issue_type") in ["scheduling", "general"]:
         resp.redirect("/explain_issue")
