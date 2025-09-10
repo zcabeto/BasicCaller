@@ -124,7 +124,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
         resp.record(
             transcribe=True,
-            transcribe_callback="/explain_issue",
+            transcribe_callback="https://basic-caller.onrender.com/explain_issue",
             max_length=30,
             play_beep=True,
             timeout=5,
@@ -149,8 +149,9 @@ async def explain_issue(CallSid: str = Form(...), TranscriptionText: str = Form(
 
         # Save system info if the previous step was systems
         if state.get("issue_type") == "systems":
-            state['system_info'] = TranscriptionText if TranscriptionText else "failed to record speech"
-            conversation_state[CallSid] = state
+            if state.get("issue_type") == "systems" and TranscriptionText:
+                state['system_info'] = TranscriptionText
+                conversation_state[CallSid] = state
 
     # Now ask for main issue description
     resp = VoiceResponse()
