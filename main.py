@@ -94,9 +94,7 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         action="https://basic-caller.onrender.com/issue_resolve",
         timeout=3
     )
-    issue_gather.say("<speak>For computer or security issues, press 1. <break time='0.3s'/> For scheduling issues, press 2. <break time='0.3s'/> For general queries, press 3.</speak>")
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-    resp.redirect("https://basic-caller.onrender.com/issue_type")
+    issue_gather.say("<speak>For computer or security issues, press 1. <break time='0.3s'/> For scheduling issues, press 2. <break time='0.3s'/> For general queries, press 3.</speak>")    
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
@@ -128,13 +126,7 @@ def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
         )
     else:                      # wrong number entered -> loop
         resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
-        resp.gather(
-            input="dtmf",
-            num_digits=1,
-            action=f"https://basic-caller.onrender.com/issue_resolve",
-            method="POST",
-            timeout=5
-        )
+        resp.redirect("https://basic-caller.onrender.com/issue_type")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
