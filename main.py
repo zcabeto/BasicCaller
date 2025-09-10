@@ -57,6 +57,7 @@ def voice():
     name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+    resp.redirect("https://basic-caller.onrender.com/voice")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
@@ -95,6 +96,7 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
     )
     issue_gather.say("<speak>For computer or security issues, press 1. <break time='0.3s'/> For scheduling issues, press 2. <break time='0.3s'/> For general queries, press 3.</speak>")
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+    resp.redirect("https://basic-caller.onrender.com/issue_type")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
@@ -103,6 +105,7 @@ def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
     # get system specs
     #resp.say(f"To help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.")
     resp = VoiceResponse()
+    print(Digits)
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['issue_type'] = "systems" if Digits == "1" else ("scheduling" if Digits == "2" else "general")
@@ -132,9 +135,6 @@ def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
             method="POST",
             timeout=5
         )
-        resp.say("We did not receive any input. Goodbye.")
-    
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
