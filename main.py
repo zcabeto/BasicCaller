@@ -82,12 +82,14 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
     """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
 
+    # Save caller info
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['number'] = From
         state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
         conversation_state[CallSid] = state
 
+    # Ask for issue type
     issue_gather = resp.gather(
         input="dtmf",
         num_digits=1,
@@ -103,6 +105,7 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
     )
     return Response(content=str(resp), media_type="text/xml")
 
+
 @app.post("/issue_resolve")
 def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     """Handle the issue type chosen by the caller"""
@@ -113,40 +116,48 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
         resp.redirect("https://basic-caller.onrender.com/issue_type")
         return Response(content=str(resp), media_type="text/xml")
 
+    # Save issue type
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['issue_type'] = "systems" if Digits == "1" else ("scheduling" if Digits == "2" else "general")
-        print('input:', Digits, state['issue_type'])
         conversation_state[CallSid] = state
+        print('input:', Digits, state['issue_type'])
 
     if Digits == "1":
+        # System info: record asynchronously
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
         resp.record(
             transcribe=True,
             transcribe_callback="https://basic-caller.onrender.com/explain_issue",
-            max_length=30,   # seconds
-            play_beep=True
+            max_length=30,
+            play_beep=True,
+            timeout=5,
+            speech_timeout="auto"
         )
-    elif Digits in ["2", "3"]:  # skip to explanation without asking system info
+        # DO NOT hang up or redirect here
+    elif Digits in ["2", "3"]:
+        # Skip system info, go straight to main issue description
         resp.redirect("https://basic-caller.onrender.com/explain_issue")
-    else:  # invalid digit -> loop
+    else:
         resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
         resp.redirect("https://basic-caller.onrender.com/issue_type")
+
     return Response(content=str(resp), media_type="text/xml")
 
 
 @app.post("/explain_issue")
 async def explain_issue(CallSid: str = Form(...), TranscriptionText: str = Form(""), From: str = Form("Unknown")):
-    """pull out name and prompt for issue description"""
-    resp = VoiceResponse()
+    """Handle system info transcription and ask for main issue description"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        if state["issue_type"]=="systems":
-            state['system_info'] = TranscriptionText if TranscriptionText else 'failed to record speech'
+
+        # Save system info if the previous step was systems
+        if state.get("issue_type") == "systems":
+            state['system_info'] = TranscriptionText if TranscriptionText else "failed to record speech"
             conversation_state[CallSid] = state
 
-    # ask for issue description
-    #resp.say(f"Thank you. After the beep, please describe any issues you are having. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a created ticket.")
+    # Now ask for main issue description
+    resp = VoiceResponse()
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/explain_issue.mp3")
     resp.record(
         transcribe=True,
@@ -156,6 +167,7 @@ async def explain_issue(CallSid: str = Form(...), TranscriptionText: str = Form(
     )
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
+
 
 ## GENERATE SUMMARY OF TRANSCRIPTION
 async def execute_prompt(prompt: str):
