@@ -6,12 +6,14 @@ import threading
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
 import os
+from openai import AsyncOpenAI
 from urllib.parse import quote_plus, unquote_plus
+
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
-
+openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = FastAPI()
 
 class CallData(BaseModel):
@@ -95,6 +97,49 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), F
     
     return Response(content=str(resp), media_type="text/xml")
 
+## GENERATE SUMMARY OF TRANSCRIPTION
+def execute_prompt(prompt: str):
+    resp = await openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are an assistant that extracts structured information from call transcripts."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0
+    )
+    return resp.choices[0].message.content.strip()
+
+def generate_summary(transcription_text: CallData):
+    prompt = f'You are logging customer support phone calls. The customer has called and explained an issue.
+    Caller transcription:
+    "{transcription_text}"
+
+    Please extract a short descriptive title (up to 8 words), a longer summary (1-3 sentences), and a priority level.
+    Respond only with a JSON with the following format: 
+        "title": "...",
+        "description": "...",
+        "priority": "urgent|high|medium|low|none"
+    '
+    default = {
+        "title": "Uncategorized Call",
+        "description": transcription_text,
+        "priority": "unknown"
+    }
+    content = await ask_model(prompt)
+    try:
+        ai_output = json.loads(content)
+        ai_result = ai_output
+    except json.JSONDecodeError:
+        retry_content = await ask_model("Return ONLY valid JSON to this question...\n"+prompt)
+        try:
+            ai_output = json.loads(retry_content)
+            ai_result = ai_output
+        except json.JSONDecodeError:
+            return default
+    required_keys = {"title", "description", "priority"}
+    if not isinstance(ai_output, dict) or set(ai_output.keys()) != required_keys:
+        return default
+    return ai_output
 
 @app.post("/transcription")
 async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None, Direction: str = Form("inbound"), overwritten_issue_SID: str = Query(None)):
