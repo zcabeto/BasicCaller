@@ -95,7 +95,6 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         timeout=3
     )
     issue_gather.say("<speak>For computer or security issues, press 1. <break time='0.3s'/> For scheduling issues, press 2. <break time='0.3s'/> For general queries, press 3.</speak>")    
-    resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_resolve")
@@ -113,7 +112,8 @@ def issue_resolve(Digits: str = Form(...), CallSid: str = Form(...)):
             input="speech",
             action="https://basic-caller.onrender.com/explain_issue",
             method="POST",
-            timeout=3
+            timeout=10,
+            speechTimeout="auto" 
         )
         sysinfo_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
     elif Digits in ["2", "3"]:    # skip to explanation without asking system info
