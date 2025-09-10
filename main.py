@@ -122,7 +122,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     if Digits == "1":
         sysinfo_gather = resp.gather(
             input="speech",
-            action="https://basic-caller.onrender.com/explain_issue?system_issue=True",
+            action="https://basic-caller.onrender.com/explain_issue",
             method="POST",
             timeout=10,
             speechTimeout="auto"
@@ -139,13 +139,12 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 
 
 @app.post("/explain_issue")
-async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown"), system_issue: str = Form("False")):
+async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
-    print('sys_issue:', system_issue, type(system_issue))
-    if system_issue == "True":
-        with store_lock:
-            state = conversation_state.get(CallSid, {})
+    with store_lock:
+        state = conversation_state.get(CallSid, {})
+        if state["issue_type"]=="systems":
             state['system_info'] = SpeechResult if SpeechResult else 'failed to record speech'
             conversation_state[CallSid] = state
 
