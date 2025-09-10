@@ -122,20 +122,14 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     if Digits == "1":
         sysinfo_gather = resp.gather(
             input="speech",
-            action="https://basic-caller.onrender.com/explain_issue",
+            action="https://basic-caller.onrender.com/explain_issue?system_issue=True",
             method="POST",
             timeout=10,
             speechTimeout="auto"
         )
         sysinfo_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
     elif Digits in ["2", "3"]:  # skip to explanation without asking system info
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/explain_issue.mp3")
-        resp.record(
-            transcribe=True,
-            transcribe_callback="https://basic-caller.onrender.com/transcription",
-            max_length=120,
-            play_beep=True
-        )
+        resp.redirect("https://basic-caller.onrender.com/explain_issue")
     else:  # invalid digit -> loop
         resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
         resp.redirect("https://basic-caller.onrender.com/issue_type")
@@ -145,13 +139,14 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 
 
 @app.post("/explain_issue")
-async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
+async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown"), system_issue: str = Form("False")):
     """pull out name and prompt for issue description"""
     resp = VoiceResponse()
-    with store_lock:
-        state = conversation_state.get(CallSid, {})
-        state['system_info'] = SpeechResult if SpeechResult else 'failed to record speech'
-        conversation_state[CallSid] = state
+    if system_issue == "True":
+        with store_lock:
+            state = conversation_state.get(CallSid, {})
+            state['system_info'] = SpeechResult if SpeechResult else 'failed to record speech'
+            conversation_state[CallSid] = state
 
     # ask for issue description
     #resp.say(f"Thank you. After the beep, please describe any issues you are having. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a created ticket.")
