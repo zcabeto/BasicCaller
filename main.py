@@ -9,6 +9,7 @@ import os
 from openai import AsyncOpenAI
 from urllib.parse import quote_plus, unquote_plus
 import json
+import re
 
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -32,24 +33,26 @@ store_lock = threading.Lock()
 issues_store: List[CallData] = []
 conversation_state = {}
 
+E164_REGEX = re.compile(r'^\+[1-9]\d{1,14}$')
+def is_e164(number: str) -> bool:
+    return bool(E164_REGEX.match(number))
+
 @app.post("/voice")
-def voice():
+def voice(From: str = Form("Unknown")):
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
+    if not is_e164(From):
+        resp.say("Number is invalid")
+        resp.hangup()
     urgency_gather = resp.gather(
         input="dtmf",
         num_digits=1,
         action="https://basic-caller.onrender.com/urgent_call",
         timeout=3
     )
-    """urgency_gather.say(
-        "Thank you for calling Threat Spike Labs! " \
-        "If your call is urgent and you need to be handed to a member of staff, please press star. "
-    )"""
     urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call.mp3")
     resp.redirect("https://basic-caller.onrender.com/ask_name")
     return Response(content=str(resp), media_type="text/xml")
-    #resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
 
 @app.post("/ask_name")
 def ask_name():
