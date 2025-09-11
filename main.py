@@ -12,7 +12,7 @@ from urllib.parse import quote_plus, unquote_plus
 import json
 import re
 import time
-from collections import defaultdict, dequeue
+from collections import defaultdict, deque
 
 # Rate Limit calls (by logging call times) and AI prompt lengths
 MAX_REQUESTS_PER_HOUR = 3
