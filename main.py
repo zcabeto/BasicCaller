@@ -12,6 +12,12 @@ from urllib.parse import quote_plus, unquote_plus
 import json
 import re
 
+# Rate Limit calls (by logging call times) and AI prompt lengths
+MAX_REQUESTS_PER_HOUR = 3
+MAX_TRANSCRIPT_CHARS = 1500
+rate_limit_log = defaultdict(lambda: deque(maxlen=MAX_REQUESTS_PER_HOUR))
+BLOCKED_NUMBERS = set()
+
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
@@ -38,6 +44,21 @@ async def verify_twilio_signature(request: Request, call_next):
         )
     return await call_next(request)
 
+def is_rate_limited(number: str) -> bool:
+    """check if a number exceeded hourly calls limit"""
+    with store_lock:
+        now = time.time()
+        window_start = now - 3600  # 1 hour ago
+        timestamps = rate_limit_log[number]
+    
+        while timestamps and timestamps[0] < window_start:
+            timestamps.popleft()    # refresh timestamps
+        return len(timestamps) >= MAX_REQUESTS_PER_HOUR
+
+def log_request(number: str):
+    with store_lock:
+        rate_limit_log[number].append(time.time())
+
 class CallData(BaseModel):
     name: str
     number: str
@@ -61,9 +82,19 @@ def is_e164(number: str) -> bool:
 def voice(From: str = Form("Unknown")):
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
-    if not is_e164(From):
+    if not is_e164(From):        # incorrect format can infer a spoofed number
         resp.say("Number is invalid")
         resp.hangup()
+    if is_rate_limited(From):    # block callers calling too many times per hour
+        resp.say("You have reached the maximum number of calls allowed. Please try again later.")
+        resp.hangup()
+        return Response(content=str(resp), media_type="text/xml")
+    log_request(From)
+    if From in BLOCKED_NUMBERS:
+        resp.say("Your number is blocked from this service.")
+        resp.hangup()
+        return Response(content=str(resp), media_type="text/xml")
+        
     urgency_gather = resp.gather(
         input="dtmf",
         num_digits=1,
@@ -268,7 +299,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
             "description": TranscriptionText,
             "priority": "unknown"
         }
-        #summary = await generate_summary(TranscriptionText)
+        #summary = await generate_summary(TranscriptionText[:MAX_TRANSCRIPT_CHARS])
         
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
