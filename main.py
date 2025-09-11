@@ -61,7 +61,7 @@ def ask_name():
         method="POST",
         timeout=3
     )
-    name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
+    name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3") # split not urgent & ask name
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     resp.redirect("https://basic-caller.onrender.com/ask_name")
@@ -96,8 +96,9 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         state['number'] = From
         state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
         state['name'] = ''.join(char for char in state['name'] if char.isalnum())    # clean: only letters
+        print("Cleaned Name:", state["name"]
         if len(state['name'].split()) < 2:
-            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
             resp.redirect("https://basic-caller.onrender.com/ask_name")
         conversation_state[CallSid] = state
 
