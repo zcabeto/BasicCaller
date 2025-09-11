@@ -32,7 +32,10 @@ async def verify_twilio_signature(request: Request, call_next):
     form_data = dict(await request.form()) if request.method == "POST" else {}
 
     if not validator.validate(url, form_data, twilio_signature):    # validate POSTs
-        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Invalid Twilio signature"}
+        )
 
     return await call_next(request)
 
