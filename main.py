@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Form, BackgroundTasks, Query
+from fastapi import FastAPI, Form, BackgroundTasks, Query, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List
 import threading
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
+from twilio.request_validator import RequestValidator
 import os
 from openai import AsyncOpenAI
 from urllib.parse import quote_plus, unquote_plus
@@ -17,6 +18,23 @@ TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = FastAPI()
+validator = RequestValidator(TWILIO_AUTH)
+
+@app.middleware("http")
+async def verify_twilio_signature(request: Request, call_next):
+    """POST requests only made by Twilio"""
+    if request.url.path.startswith("/poll"):
+        return await call_next(request)    # anyone can poll
+
+    twilio_signature = request.headers.get("X-Twilio-Signature", "")
+    url = str(request.url)
+    body = await request.body()
+    form_data = dict(await request.form()) if request.method == "POST" else {}
+
+    if not validator.validate(url, form_data, twilio_signature):    # validate POSTs
+        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+    return await call_next(request)
 
 class CallData(BaseModel):
     name: str
@@ -35,6 +53,7 @@ conversation_state = {}
 
 E164_REGEX = re.compile(r'^\+[1-9]\d{1,14}$')
 def is_e164(number: str) -> bool:
+    print("Number:",number)
     return bool(E164_REGEX.match(number))
 
 @app.post("/voice")
