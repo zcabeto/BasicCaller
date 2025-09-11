@@ -154,6 +154,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 @app.post("/explain_issue")
 async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
     """Handle system info transcription and ask for main issue description"""
+    resp = VoiceResponse()
     with store_lock:
         state = conversation_state.get(CallSid, {})
         if state.get("issue_type") == "systems":
@@ -165,7 +166,6 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
                 conversation_state[CallSid] = state
 
     # Now ask for main issue description
-    resp = VoiceResponse()
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/explain_issue.mp3")
     resp.record(
         transcribe=True,
