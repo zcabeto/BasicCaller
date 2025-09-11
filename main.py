@@ -23,7 +23,7 @@ validator = RequestValidator(TWILIO_AUTH)
 @app.middleware("http")
 async def verify_twilio_signature(request: Request, call_next):
     """POST requests only made by Twilio"""
-    if request.url.path.startswith("/poll"):
+    if request.url.path.startswith("/poll") or request.url.path == "/":
         return await call_next(request)    # anyone can poll
 
     twilio_signature = request.headers.get("X-Twilio-Signature", "")
