@@ -236,7 +236,7 @@ async def recording_complete(RecordingDuration: str = Form("")):
         duration = 0
     resp = VoiceResponse()
     if duration > 110:  # hit max length
-        resp.say("Thank you, your issue has been recorded. Goodbye.")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/goodbye.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
