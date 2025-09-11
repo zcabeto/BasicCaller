@@ -88,12 +88,12 @@ def voice(From: str = Form("Unknown")):
         resp.say("Number is invalid")
         resp.hangup()
     if is_rate_limited(From):    # block callers calling too many times per hour
-        resp.say("You have reached the maximum number of calls allowed. Please try again later.")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/max_calls.mp3")
         resp.hangup()
         return Response(content=str(resp), media_type="text/xml")
     log_request(From)
     if From in BLOCKED_NUMBERS:
-        resp.say("Your number is blocked from this service.")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/blocked.mp3")
         resp.hangup()
         return Response(content=str(resp), media_type="text/xml")
         
@@ -103,7 +103,8 @@ def voice(From: str = Form("Unknown")):
         action="https://basic-caller.onrender.com/urgent_call",
         timeout=3
     )
-    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call.mp3")
+    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/urgent_call.mp3")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_urgent.mp3")
     resp.redirect("https://basic-caller.onrender.com/ask_name")
     return Response(content=str(resp), media_type="text/xml")
 
@@ -117,9 +118,9 @@ def ask_name():
         method="POST",
         timeout=3
     )
-    name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3") # split not urgent & ask name
+    name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/give_name.mp3") # split not urgent & ask name
     
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
     resp.redirect("https://basic-caller.onrender.com/ask_name")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
@@ -130,7 +131,7 @@ def urgent_call(Digits: str = Form(...)):
     resp = VoiceResponse()
     if Digits == "*":
         #resp.say("Connecting you to a staff member now.")
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/transfer_call.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/transfer_call.mp3")
         dial = resp.dial(caller_id="+447367616944")
         dial.number("+447873665370")
     else:
@@ -153,7 +154,7 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
         state['name'] = ''.join(char for char in state['name'] if char.isalnum() or char==' ')    # clean: only letters
         if len(state['name'].split()) < 2:
-            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
+            resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_enough.mp3")
             resp.redirect("https://basic-caller.onrender.com/ask_name")
         conversation_state[CallSid] = state
 
@@ -163,13 +164,7 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         action="https://basic-caller.onrender.com/issue_resolve",
         timeout=5
     )
-    issue_gather.say(
-        "<speak>"
-        "For computer or security issues, press 1. "
-        "<break time='0.3s'/> For scheduling issues, press 2. "
-        "<break time='0.3s'/> For general queries, press 3."
-        "</speak>"
-    )
+    issue_gather.play("https://zcabeto.github.io/BasicCaller-Audios/query_option.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
 
@@ -192,16 +187,16 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
             method="POST",
             timeout=3
         )
-        system_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/system_info.mp3")
+        system_gather.play("https://zcabeto.github.io/BasicCaller-Audios/sys_info.mp3")
         
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
         resp.redirect("https://basic-caller.onrender.com/issue_resolve")
         resp.hangup()
     elif state.get("issue_type") in ["scheduling", "general"]:
         resp.redirect("/explain_issue")
     else:
         # Only for truly invalid DTMF input
-        resp.say("Invalid input. Press 1 for computer issues, 2 for scheduling, or 3 for general queries.")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/invalid.mp3")
         resp.redirect("/issue_type")
 
     return Response(content=str(resp), media_type="text/xml")
@@ -217,12 +212,12 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
             if state.get("issue_type") == "systems" and SpeechResult:
                 state['system_info'] = SpeechResult
                 if len(state['system_info'].split()) < 3:
-                    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
+                    resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
                     resp.redirect("https://basic-caller.onrender.com/issue_resolve")
                 conversation_state[CallSid] = state
 
     # Now ask for main issue description
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/explain_issue.mp3")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/ask_issue.mp3")
     resp.record(
         transcribe=True,
         transcribe_callback="https://basic-caller.onrender.com/transcription",
