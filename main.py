@@ -14,7 +14,7 @@ import re
 import time
 from collections import defaultdict, deque
 
-# Rate Limit calls (by logging call times) and AI prompt lengths
+# rate limit calls (by logging call times) and AI prompt lengths
 MAX_REQUESTS_PER_HOUR = 3
 MAX_TRANSCRIPT_CHARS = 1500
 rate_limit_log = defaultdict(lambda: deque(maxlen=MAX_REQUESTS_PER_HOUR))
