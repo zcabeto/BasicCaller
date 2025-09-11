@@ -36,7 +36,6 @@ async def verify_twilio_signature(request: Request, call_next):
             status_code=403,
             content={"detail": "Invalid Twilio signature"}
         )
-
     return await call_next(request)
 
 class CallData(BaseModel):
@@ -56,7 +55,6 @@ conversation_state = {}
 
 E164_REGEX = re.compile(r'^\+[1-9]\d{1,14}$')
 def is_e164(number: str) -> bool:
-    print("Number:",number)
     return bool(E164_REGEX.match(number))
 
 @app.post("/voice")
@@ -204,8 +202,12 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
 
 @app.post("/recording_complete")
 async def recording_complete(RecordingDuration: str = Form("")):
+    try:
+        duration = int(RecordingDuration or 0)
+    except ValueError:
+        duration = 0
     resp = VoiceResponse()
-    if RecordingDuration == "120":  # hit max length
+    if duration > "110":  # hit max length
         resp.say("Thank you, your issue has been recorded. Goodbye.")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
