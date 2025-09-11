@@ -195,12 +195,20 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
     resp.record(
         transcribe=True,
         transcribe_callback="https://basic-caller.onrender.com/transcription",
+        action="https://basic-caller.onrender.com/recording_complete",    # end of 120s
         max_length=120,
         play_beep=True
     )
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
+@app.post("/recording_complete")
+async def recording_complete(CallSid: str = Form(...), RecordingUrl: str = Form(""), RecordingDuration: str = Form("")):
+    resp = VoiceResponse()
+    if RecordingDuration == "120":  # hit max length
+        resp.say("Thank you, your issue has been recorded. Goodbye.")
+    resp.hangup()
+    return Response(content=str(resp), media_type="text/xml")
 
 ## GENERATE SUMMARY OF TRANSCRIPTION
 async def execute_prompt(prompt: str):
