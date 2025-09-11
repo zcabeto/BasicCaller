@@ -203,7 +203,7 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/recording_complete")
-async def recording_complete(CallSid: str = Form(...), RecordingUrl: str = Form(""), RecordingDuration: str = Form("")):
+async def recording_complete(RecordingDuration: str = Form("")):
     resp = VoiceResponse()
     if RecordingDuration == "120":  # hit max length
         resp.say("Thank you, your issue has been recorded. Goodbye.")
