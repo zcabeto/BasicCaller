@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 from urllib.parse import quote_plus, unquote_plus
 import json
 import re
+from collections import defaultdict
 
 # Rate Limit calls (by logging call times) and AI prompt lengths
 MAX_REQUESTS_PER_HOUR = 3
