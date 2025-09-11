@@ -47,7 +47,12 @@ def voice():
         "If your call is urgent and you need to be handed to a member of staff, please press star. "
     )"""
     urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/urgent_call.mp3")
+    resp.redirect("https://basic-caller.onrender.com/ask_name")
+    return Response(content=str(resp), media_type="text/xml")
     #resp.say("Your call has been registered as not urgent. Please start by providing your first and last name")
+
+@app.post("/ask_name")
+def ask_name():
     name_gather = resp.gather(
         input="speech",
         action="https://basic-caller.onrender.com/issue_type",
@@ -57,7 +62,7 @@ def voice():
     name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-    resp.redirect("https://basic-caller.onrender.com/voice")
+    resp.redirect("https://basic-caller.onrender.com/ask_name")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
