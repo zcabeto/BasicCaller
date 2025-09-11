@@ -95,8 +95,7 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         state = conversation_state.get(CallSid, {})
         state['number'] = From
         state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
-        state['name'] = ''.join(char for char in state['name'] if char.isalnum())    # clean: only letters
-        print("Cleaned Name:", state["name"])
+        state['name'] = ''.join(char for char in state['name'] if char.isalnum() or char==' ')    # clean: only letters
         if len(state['name'].split()) < 2:
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
             resp.redirect("https://basic-caller.onrender.com/ask_name")
@@ -161,7 +160,7 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
             if state.get("issue_type") == "systems" and SpeechResult:
                 state['system_info'] = SpeechResult
                 if len(state['system_info'].split()) < 3:
-                    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
+                    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
                     resp.redirect("https://basic-caller.onrender.com/issue_resolve")
                 conversation_state[CallSid] = state
 
