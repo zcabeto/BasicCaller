@@ -231,7 +231,7 @@ async def timeout(RecordingDuration: str = Form("")):
 @app.get("/poll/")
 def poll():
     with store_lock:
-        for issue in issue_store:
+        for issue in issues_store:
             issue.visited=True
         return {"issues": issues_store}
 
