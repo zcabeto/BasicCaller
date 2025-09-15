@@ -96,6 +96,6 @@ async def generate_summary(transcription_text: str):
     except json.JSONDecodeError:
         ai_result = default
     required_keys = {"title", "description", "priority"}
-    if not isinstance(ai_output, dict) or set(ai_output.keys()) != required_keys:
+    if not isinstance(ai_result, dict) or set(ai_result.keys()) != required_keys:
         return default
     return ai_result
