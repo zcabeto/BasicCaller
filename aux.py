@@ -40,7 +40,7 @@ def is_e164(number: str) -> bool:
     return bool(E164_REGEX.match(number))
 
 def is_blocked(number: str) -> bool:
-    return (number in BLOCKED)
+    return (number in BLOCKED_NUMBERS)
 
 async def execute_prompt(prompt: str):
     try:
