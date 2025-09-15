@@ -97,6 +97,7 @@ async def generate_summary(transcription_text: str):
     except json.JSONDecodeError as e:
         ai_result = default
         print(f"Failed: {e}")
+        print("RawContent:", content)
     required_keys = {"title", "description", "priority"}
     if not isinstance(ai_result, dict) or set(ai_result.keys()) != required_keys:
         print("Failed: bad json")
