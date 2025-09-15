@@ -7,7 +7,7 @@ from twilio.request_validator import RequestValidator
 from typing import List
 from datetime import datetime
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key
 
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -229,7 +229,7 @@ async def timeout(RecordingDuration: str = Form("")):
 
 
 @app.get("/poll/")
-def poll():
+def poll(authorized: bool = Depends(verify_api_key)):
     with store_lock:
         for issue in issues_store:
             issue.visited=True
