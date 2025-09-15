@@ -18,7 +18,7 @@ store_lock = threading.Lock()
 issues_store: List[CallData] = []
 conversation_state = {}
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     return {"status": "ok", "message": "FastAPI + Twilio server is running"}
 
