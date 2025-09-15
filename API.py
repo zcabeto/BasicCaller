@@ -100,8 +100,6 @@ def ask_name():
     name_gather.play("https://zcabeto.github.io/BasicCaller-Audios/give_name.mp3") # split not urgent & ask name
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
-    resp.redirect("https://basic-caller.onrender.com/ask_name")
-    resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_type")
