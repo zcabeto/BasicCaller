@@ -39,6 +39,9 @@ E164_REGEX = re.compile(r'^\+[1-9]\d{1,14}$')
 def is_e164(number: str) -> bool:
     return bool(E164_REGEX.match(number))
 
+def is_blocked(number: str) -> bool:
+    return (number in BLOCKED)
+
 async def execute_prompt(prompt: str):
     try:
         resp = await openai_client.chat.completions.create(
