@@ -85,7 +85,7 @@ async def generate_summary(transcription_text: str):
     """
     default = {
         "title": "Uncategorized Call",
-        "description": "Failed AI Summarisation,
+        "description": "Failed AI Summarisation",
         "priority": "unknown"
     }
     ai_result = default
