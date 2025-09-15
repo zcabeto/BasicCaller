@@ -6,7 +6,7 @@ from twilio.rest import Client
 from twilio.request_validator import RequestValidator
 from typing import List
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, generate_summary
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary
 
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -58,6 +58,7 @@ def start_call(From: str = Form("Unknown")):
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/blocked.mp3")
             resp.hangup()
             return Response(content=str(resp), media_type="text/xml")
+        clear_old_issues()    # every time a call is initiated, refresh the stored issues
         
     urgency_gather = resp.gather(
         input="dtmf",
@@ -205,7 +206,8 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=(TranscriptionText or "(empty)")
+            raw_transcription=(TranscriptionText or "(empty)"),
+            visited=False
         )
         issues_store.append(state['issue'])
         return {"status": "saved"}
@@ -221,3 +223,18 @@ async def timeout(RecordingDuration: str = Form("")):
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/goodbye.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
+
+
+@app.get("/poll/")
+def poll():
+    with store_lock:
+        for issue in issue_store:
+            issue.visited=True
+        return {"issues": issues_store}
+
+@app.get("/poll_and_clear/")
+def poll_and_clear():
+    with store_lock:
+        issues = issues_store.copy()
+        issues_store.clear()
+    return {"issues": issues}
