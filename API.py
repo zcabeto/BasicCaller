@@ -65,12 +65,12 @@ def start_call(From: str = Form("Unknown")):
     urgency_gather = resp.gather(
         input="dtmf",
         num_digits=1,
-        action="https://basic-caller.onrender.com/urgent_call",
+        action="https://autoreceptionist.onrender.com/urgent_call",
         timeout=3
     )
     urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/urgent_call.mp3")
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_urgent.mp3")
-    resp.redirect("https://basic-caller.onrender.com/ask_name")
+    resp.redirect("https://autoreceptionist.onrender.com/ask_name")
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/urgent_call")
@@ -93,7 +93,7 @@ def ask_name():
     resp = VoiceResponse()
     name_gather = resp.gather(
         input="speech",
-        action="https://basic-caller.onrender.com/issue_type",
+        action="https://autoreceptionist.onrender.com/issue_type",
         method="POST",
         timeout=3
     )
@@ -114,13 +114,13 @@ def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From:
         state['name'] = ''.join(char for char in state['name'] if char.isalnum() or char==' ')    # clean: only letters
         if len(state['name'].split()) < 2:
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_enough.mp3")
-            resp.redirect("https://basic-caller.onrender.com/ask_name")
+            resp.redirect("https://autoreceptionist.onrender.com/ask_name")
         conversation_state[CallSid] = state
 
     issue_gather = resp.gather(
         input="dtmf",
         num_digits=1,
-        action="https://basic-caller.onrender.com/issue_resolve",
+        action="https://autoreceptionist.onrender.com/issue_resolve",
         timeout=5
     )
     issue_gather.play("https://zcabeto.github.io/BasicCaller-Audios/query_option.mp3")
@@ -142,14 +142,14 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     if state.get("issue_type") == "systems":
         system_gather = resp.gather(
             input="speech",
-            action="https://basic-caller.onrender.com/explain_issue",
+            action="https://autoreceptionist.onrender.com/explain_issue",
             method="POST",
             timeout=3
         )
         system_gather.play("https://zcabeto.github.io/BasicCaller-Audios/sys_info.mp3")
         
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
-        resp.redirect("https://basic-caller.onrender.com/issue_resolve")
+        resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
         resp.hangup()
     elif state.get("issue_type") in ["scheduling", "general"]:
         resp.redirect("/explain_issue")
@@ -170,15 +170,15 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
                 state['system_info'] = SpeechResult
                 if len(state['system_info'].split()) < 3:
                     resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
-                    resp.redirect("https://basic-caller.onrender.com/issue_resolve")
+                    resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
                 conversation_state[CallSid] = state
 
     # Now ask for main issue description
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/ask_issue.mp3")
     resp.record(
         transcribe=True,
-        transcribe_callback="https://basic-caller.onrender.com/transcription",
-        action="https://basic-caller.onrender.com/timeout",    # end of 120s
+        transcribe_callback="https://autoreceptionist.onrender.com/transcription",
+        action="https://autoreceptionist.onrender.com/timeout",    # end of 120s
         max_length=120,
         play_beep=True
     )
