@@ -47,7 +47,7 @@ def start_call(From: str = Form("Unknown")):
     resp = VoiceResponse()
     with store_lock:
         if not is_e164(From):        # incorrect format can infer a spoofed number
-            resp.say("Number is invalid")
+            resp.play("https://zcabeto.github.io/BasicCaller-Audios/blocked.mp3")
             resp.hangup()
         if is_rate_limited(From):    # limit callers calling too many times per hour
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/max_calls.mp3")
@@ -58,7 +58,8 @@ def start_call(From: str = Form("Unknown")):
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/blocked.mp3")
             resp.hangup()
             return Response(content=str(resp), media_type="text/xml")
-        clear_old_issues()    # every time a call is initiated, refresh the stored issues
+        # every time a call is initiated, refresh the stored issues
+        clear_old_issues(issues_store)
         
     urgency_gather = resp.gather(
         input="dtmf",
