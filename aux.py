@@ -25,6 +25,12 @@ class CallData(BaseModel):
     visited: bool
     timestamp: datetime = datetime.utcnow() 
 
+API_KEY = os.getenv("POLL_API_KEY")
+def verify_api_key(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return True
+
 def is_rate_limited(number: str) -> bool:
     """check if a number exceeded hourly calls limit"""
     now = time.time()
