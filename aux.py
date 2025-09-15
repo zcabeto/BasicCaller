@@ -4,7 +4,7 @@ import os
 from collections import defaultdict, deque
 from pydantic import BaseModel
 import time
-import datetime
+from datetime import datetime
 from openai import AsyncOpenAI
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
