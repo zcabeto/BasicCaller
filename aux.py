@@ -4,6 +4,7 @@ import os
 from collections import defaultdict, deque
 from pydantic import BaseModel
 import time
+import datetime
 from openai import AsyncOpenAI
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -21,6 +22,8 @@ class CallData(BaseModel):
     description: str
     priority: str
     raw_transcription: str
+    visited: bool
+    timestamp: datetime = datetime.utcnow() 
 
 def is_rate_limited(number: str) -> bool:
     """check if a number exceeded hourly calls limit"""
@@ -41,6 +44,12 @@ def is_e164(number: str) -> bool:
 
 def is_blocked(number: str) -> bool:
     return (number in BLOCKED_NUMBERS)
+
+def clear_old_issues(issue_store):
+    cutoff = datetime.utcnow().timestamp() - (7 * 24 * 60 * 60)
+    issues_store[:] = [issue for issue in issues_store if (issue.timestamp.timestamp() > cutoff and issue.visited)]
+    return issues_store
+            
 
 async def execute_prompt(prompt: str):
     try:
