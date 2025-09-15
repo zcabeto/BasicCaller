@@ -18,6 +18,10 @@ store_lock = threading.Lock()
 issues_store: List[CallData] = []
 conversation_state = {}
 
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "FastAPI + Twilio server is running"}
+
 validator = RequestValidator(TWILIO_AUTH)
 @app.middleware("http")
 async def verify_twilio_signature(request: Request, call_next):
