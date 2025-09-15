@@ -207,7 +207,8 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
             description=summary['description'],
             priority=summary['priority'],
             raw_transcription=(TranscriptionText or "(empty)"),
-            visited=False
+            visited=False,
+            timestamp=datetime.utcnow()
         )
         issues_store.append(state['issue'])
         return {"status": "saved"}
