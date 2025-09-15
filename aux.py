@@ -85,7 +85,7 @@ async def generate_summary(transcription_text: str):
     """
     default = {
         "title": "Uncategorized Call",
-        "description": transcription_text,
+        "description": "Failed AI Summarisation,
         "priority": "unknown"
     }
     ai_result = default
@@ -93,9 +93,12 @@ async def generate_summary(transcription_text: str):
     try:
         ai_output = json.loads(content)
         ai_result = ai_output
-    except json.JSONDecodeError:
+        print("Succeeded")
+    except json.JSONDecodeError as e:
         ai_result = default
+        print(f"Failed: {e}")
     required_keys = {"title", "description", "priority"}
     if not isinstance(ai_result, dict) or set(ai_result.keys()) != required_keys:
+        print("Failed: bad json")
         return default
     return ai_result
