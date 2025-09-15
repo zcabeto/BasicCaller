@@ -60,7 +60,7 @@ def start_call(From: str = Form("Unknown")):
             resp.hangup()
             return Response(content=str(resp), media_type="text/xml")
         # every time a call is initiated, refresh the stored issues
-        issues_store = clear_old_issues(issues_store)
+        clear_old_issues(issues_store)
         
     urgency_gather = resp.gather(
         input="dtmf",
@@ -234,5 +234,5 @@ def poll(authorized: bool = Depends(verify_api_key)):
         for issue in issues_store:
             issue.visited=True
         issues_out = issues_store.copy()
-        issues_store = clear_old_issues(issues_store)
+        clear_old_issues(issues_store)
         return {"issues": issues_out}
