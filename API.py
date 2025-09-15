@@ -196,7 +196,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), T
             "description": TranscriptionText,
             "priority": "unknown"
         }
-        #summary = await generate_summary(TranscriptionText)
+        summary = await generate_summary(TranscriptionText)
         
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
