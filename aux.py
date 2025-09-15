@@ -90,14 +90,12 @@ async def generate_summary(transcription_text: str):
     }
     ai_result = default
     content = await execute_prompt(prompt)
-    try:
-        ai_output = json.loads(content)
-        ai_result = ai_output
-        print("Succeeded")
-    except json.JSONDecodeError as e:
+    match = re.search(r'\{.*\}', content, re.DOTALL)
+    if match:
+        ai_result = json.loads(match.group())
+    else:
         ai_result = default
-        print(f"Failed: {e}")
-        print("RawContent:", content)
+        print("RawContent:", resp(content))
     required_keys = {"title", "description", "priority"}
     if not isinstance(ai_result, dict) or set(ai_result.keys()) != required_keys:
         print("Failed: bad json")
