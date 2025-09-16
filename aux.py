@@ -64,7 +64,7 @@ async def transcribe_with_whisper(audio_url: str) -> str:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                recording_url,
+                audio_url,
                 auth=(TWILIO_SID, TWILIO_AUTH)
             )
             resp.raise_for_status()
