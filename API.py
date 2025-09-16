@@ -186,7 +186,7 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), RecordingUrl: str = Form(""), TranscriptionText: str = Form(""):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), RecordingUrl: str = Form(""), TranscriptionText: str = Form("")):
     """create transcription and store the issue"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
