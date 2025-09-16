@@ -63,16 +63,15 @@ def clear_old_issues(issues_store):
 async def transcribe_with_whisper(audio_url: str) -> str:
     try:
         async with httpx.AsyncClient() as client:
-            async with session.get(audio_url) as resp:
-                resp = await client.get(
-                    recording_url,
-                    auth=(TWILIO_SID, TWILIO_AUTH)
-                )
-                resp.raise_for_status()
-                audio_bytes = resp.content
+            resp = await client.get(
+                recording_url,
+                auth=(TWILIO_SID, TWILIO_AUTH)
+            )
+            resp.raise_for_status()
+            audio_bytes = resp.content        # get audio data
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
             tmp_file.write(audio_bytes)
-            tmp_path = tmp_file.name                # temporarily save
+            tmp_path = tmp_file.name          # temporarily save for use
 
         with open(tmp_path, "rb") as audio_file:
             transcript = await openai_client.audio.transcriptions.create(
