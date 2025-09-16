@@ -53,7 +53,7 @@ def is_blocked(number: str) -> bool:
     return (number in BLOCKED_NUMBERS)
 
 def clear_old_issues(issues_store):
-    cutoff = datetime.utcnow().timestamp() - (1 * 1 * 15 * 60)    # 15 mins
+    cutoff = datetime.utcnow().timestamp() - (7 * 24 * 60 * 60)    # 7 days
     issues_store[:] = [issue for issue in issues_store if (issue.timestamp.timestamp() > cutoff and issue.visited)]            
 
 async def execute_prompt(prompt: str):
