@@ -15,6 +15,8 @@ MAX_REQUESTS_PER_HOUR = 3
 MAX_TRANSCRIPT_CHARS = 1500
 rate_limit_log = defaultdict(lambda: deque(maxlen=MAX_REQUESTS_PER_HOUR))
 BLOCKED_NUMBERS = set()
+TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
 
 class CallData(BaseModel):
     name: str
@@ -62,10 +64,12 @@ async def transcribe_with_whisper(audio_url: str) -> str:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(audio_url) as resp:
-                if resp.status != 200:
-                    print(f"Failed to fetch audio: {resp.status}")
-                    return ""
-                audio_bytes = await resp.read()    # get audio file
+                resp = await client.get(
+                    recording_url,
+                    auth=(TWILIO_SID, TWILIO_AUTH)
+                )
+                resp.raise_for_status()
+                audio_bytes = resp.content
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
             tmp_file.write(audio_bytes)
             tmp_path = tmp_file.name                # temporarily save
