@@ -1,6 +1,8 @@
 import json
 import re
 import os
+import aiohttp
+import tempfile
 from collections import defaultdict, deque
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
@@ -55,6 +57,30 @@ def is_blocked(number: str) -> bool:
 def clear_old_issues(issues_store):
     cutoff = datetime.utcnow().timestamp() - (7 * 24 * 60 * 60)    # 7 days
     issues_store[:] = [issue for issue in issues_store if (issue.timestamp.timestamp() > cutoff and issue.visited)]            
+
+async def transcribe_with_whisper(audio_url: str) -> str:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(audio_url) as resp:
+                if resp.status != 200:
+                    print(f"Failed to fetch audio: {resp.status}")
+                    return ""
+                audio_bytes = await resp.read()    # get audio file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+            tmp_file.write(audio_bytes)
+            tmp_path = tmp_file.name                # temporarily save
+
+        with open(tmp_path, "rb") as audio_file:
+            transcript = await openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="text"
+            )
+        os.remove(tmp_path)
+        return transcript.strip()
+    except Exception as e:
+        print(f"Whisper transcription failed: {e}")
+        return ""
 
 async def execute_prompt(prompt: str):
     try:
