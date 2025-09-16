@@ -1,7 +1,7 @@
 import json
 import re
 import os
-import aiohttp
+import httpx
 import tempfile
 from collections import defaultdict, deque
 from fastapi import Header, HTTPException
@@ -62,7 +62,7 @@ def clear_old_issues(issues_store):
 
 async def transcribe_with_whisper(audio_url: str) -> str:
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpx.AsyncClient() as client:
             async with session.get(audio_url) as resp:
                 resp = await client.get(
                     recording_url,
