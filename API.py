@@ -7,7 +7,7 @@ from twilio.request_validator import RequestValidator
 from typing import List
 from datetime import datetime
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, transcribe_with_whisper, verify_api_key
 
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -186,18 +186,22 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), TranscriptionText: str = Form(""), background_tasks: BackgroundTasks = None, Direction: str = Form("inbound"), overwritten_issue_SID: str = Query(None)):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), RecordingUrl: str = Form("")):
     """create transcription and store the issue"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
 
-        summary = {
-            "title": "Uncategorized Call",
-            "description": TranscriptionText,
-            "priority": "unknown"
-        }
-        summary = await generate_summary(TranscriptionText)
-        
+    # whisper transcription then summarise
+    whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
+    text_to_use = whisper_text or TranscriptionText or "(empty)"
+    summary = {
+        "title": "Uncategorized Call",
+        "description": TranscriptionText,
+        "priority": "unknown"
+    }
+    summary = await generate_summary(TranscriptionText)
+    
+    with store_lock:
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
             number=state.get('number', From),
