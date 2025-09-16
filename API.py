@@ -194,7 +194,14 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), R
     # whisper transcription then summarise
     whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
     text_to_use = whisper_text or TranscriptionText or "(empty)"
-    summary = await generate_summary(text_to_use)
+    if text_to_use != "(empty)":
+        summary = await generate_summary(text_to_use)
+    else:
+        summary = {
+            "title": "Uncategorised Call",
+            "description": "Failed AI Summarisation",
+            "priority": "unknown"
+        }
     
     with store_lock:
         state['issue'] = CallData(
