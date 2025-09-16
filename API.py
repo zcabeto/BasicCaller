@@ -186,7 +186,7 @@ async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), 
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), RecordingUrl: str = Form("")):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), RecordingUrl: str = Form(""), TranscriptionText: str = Form(""):
     """create transcription and store the issue"""
     with store_lock:
         state = conversation_state.get(CallSid, {})
@@ -194,12 +194,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), R
     # whisper transcription then summarise
     whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
     text_to_use = whisper_text or TranscriptionText or "(empty)"
-    summary = {
-        "title": "Uncategorized Call",
-        "description": TranscriptionText,
-        "priority": "unknown"
-    }
-    summary = await generate_summary(TranscriptionText)
+    summary = await generate_summary(text_to_use)
     
     with store_lock:
         state['issue'] = CallData(
