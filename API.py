@@ -193,9 +193,9 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), R
 
     # whisper transcription then summarise
     whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
-    text_to_use = whisper_text or TranscriptionText or "(empty)"
-    if text_to_use != "(empty)":
-        summary = await generate_summary(text_to_use)
+    raw_transcript = whisper_text or TranscriptionText or "(empty)"
+    if raw_transcript != "(empty)":
+        summary = await generate_summary(raw_transcript)
     else:
         summary = {
             "title": "Uncategorised Call",
@@ -212,7 +212,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), R
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=(TranscriptionText or "(empty)"),
+            raw_transcription=raw_transcript,
             visited=False,
             timestamp=datetime.utcnow()
         )
