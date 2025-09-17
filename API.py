@@ -200,7 +200,7 @@ async def request_ticket(CallSid: str = Form(...), SpeechResult: str = Form(""),
         issues_store.append(state['issue'])
 
         resp.say("Thank you for this request. After verifying your identity, we will call you back with ticket updates.")
-        return {"status": "saved"}
+        return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/explain_issue")
 async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form("")):
