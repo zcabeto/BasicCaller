@@ -91,14 +91,14 @@ def urgent_call(Digits: str = Form(...)):
 def ask_name():
     """ask name of caller for log matching"""
     resp = VoiceResponse()
-    name_gather = resp.record(
+    resp.say("Could you provide your full name and the name of your company?")
+    resp.record(
         input="speech",
         action="https://autoreceptionist.onrender.com/issue_type",
         method="POST",
         max_length=5,
         trim="trim-silence"
     )
-    name_gather.say("Could you provide your full name and the name of your company?") # split not urgent & ask name
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
@@ -148,27 +148,27 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     state = conversation_state.get(CallSid, {})
 
     if state.get("issue_type").startswith("Request Ticket:"):
-        request_ticket = resp.record(
+        resp.say("Please clearly state the ticket ID this request regards.")
+        resp.record(
             input="speech",
             action="https://autoreceptionist.onrender.com/request_ticket",
             method="POST",
             max_length=5,
             trim="trim-silence"
         )
-        request_ticket.say("Please clearly state the ticket ID this request regards.")
         
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
         resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
         resp.hangup()
     elif state.get("issue_type") == "systems":
-        system_gather = resp.record(
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/sys_info.mp3")
+        resp.record(
             input="speech",
             action="https://autoreceptionist.onrender.com/explain_issue",
             method="POST",
             max_length=7,
             trim="trim-silence"
         )
-        system_gather.play("https://zcabeto.github.io/BasicCaller-Audios/sys_info.mp3")
         
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
         resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
