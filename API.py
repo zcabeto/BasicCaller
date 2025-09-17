@@ -97,7 +97,7 @@ def ask_name():
         method="POST",
         timeout=3
     )
-    name_gather.play("Could you provide your full name and the name of your company?") # split not urgent & ask name
+    name_gather.say("Could you provide your full name and the name of your company?") # split not urgent & ask name
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
