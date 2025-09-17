@@ -257,7 +257,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), R
         summary = {
             "title": "Uncategorised Call",
             "description": "Failed AI Summarisation",
-            "priority": "unknown"
+            "priority": "Uncategorised"
         }
     
     with store_lock:
@@ -265,7 +265,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), R
             name=state.get('name', "Caller"),
             number=state.get('number', From),
             system_info=state.get('system_info', "no device information"),
-            issue_type=state.get('issue_type', 'system'),
+            issue_type=state.get('issue_type', 'unknown'),
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
