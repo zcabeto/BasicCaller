@@ -144,7 +144,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
 
     state = conversation_state.get(CallSid, {})
 
-    if state.get("issue_type").startswith("Request Ticket:")
+    if state.get("issue_type").startswith("Request Ticket:"):
         request_ticket = resp.gather(
             input="speech",
             action="https://autoreceptionist.onrender.com/request_ticket",
