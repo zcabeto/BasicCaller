@@ -110,12 +110,12 @@ async def generate_summary(transcription_text: str):
     Respond only with a JSON with the following format: 
         "title": "...",
         "description": "...",
-        "priority": "urgent|high|medium|low|none"
+        "priority": "Critical|High|Medium|Low|None"
     """
     default = {
         "title": "Uncategorised Call",
         "description": "Failed AI Summarisation",
-        "priority": "unknown"
+        "priority": "Uncategorised"
     }
     ai_result = default
     content = await execute_prompt(prompt)
