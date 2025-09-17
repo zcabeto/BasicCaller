@@ -184,10 +184,23 @@ async def request_ticket(CallSid: str = Form(...), SpeechResult: str = Form(""))
         if state.get("issue_type").startswith("Request Ticket:"):
             state['issue_type'] += SpeechResult
             conversation_state[CallSid] = state
-            
-    resp.say("Thank you for this request. After verifying your identity, we will call you back with ticket updates.")
-    resp.hangup()
-    return Response(content=str(resp), media_type="text/xml")
+
+        state['issue'] = CallData(
+            name=state.get('name', "Caller"),
+            number=state.get('number', From),
+            system_info="None",
+            issue_type=state.get('issue_type', 'failed to capture'),
+            title="None",
+            description="None",
+            priority="None",
+            raw_transcription="None",
+            visited=False,
+            timestamp=datetime.utcnow()
+        )
+        issues_store.append(state['issue'])
+
+        resp.say("Thank you for this request. After verifying your identity, we will call you back with ticket updates.")
+        return {"status": "saved"}
 
 @app.post("/explain_issue")
 async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form("")):
