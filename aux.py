@@ -11,7 +11,7 @@ from datetime import datetime
 from openai import AsyncOpenAI
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-MAX_REQUESTS_PER_HOUR = 3
+MAX_REQUESTS_PER_HOUR = 5
 MAX_TRANSCRIPT_CHARS = 1500
 rate_limit_log = defaultdict(lambda: deque(maxlen=MAX_REQUESTS_PER_HOUR))
 BLOCKED_NUMBERS = set()
