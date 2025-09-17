@@ -103,14 +103,16 @@ def ask_name():
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_type")
-def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
+def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), RecordingUrl: str = Form(""), From: str = Form("Unknown")):
     """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
 
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['number'] = From
-        state['name'] = SpeechResult if SpeechResult else state.get('name', "Caller")
+        whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
+        state['name'] = whisper_text or SpeechResult or state.get('name', "Caller")
+
         state['name'] = ''.join(char for char in state['name'] if char.isalnum() or char==' ')    # clean: only letters
         if len(state['name'].split()) < 2:
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_enough.mp3")
@@ -177,12 +179,13 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/request_ticket")
-async def request_ticket(CallSid: str = Form(...), SpeechResult: str = Form(""), From: str = Form("Unknown")):
+async def request_ticket(CallSid: str = Form(...), SpeechResult: str = Form(""), RecordingUrl: str = Form(""), From: str = Form("Unknown")):
     resp = VoiceResponse()
     with store_lock:
         state = conversation_state.get(CallSid, {})
         if state.get("issue_type").startswith("Request Ticket:"):
-            state['issue_type'] += SpeechResult
+            whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
+            state['issue_type'] = whisper_text or SpeechResult
             conversation_state[CallSid] = state
 
         state['issue'] = CallData(
@@ -203,13 +206,14 @@ async def request_ticket(CallSid: str = Form(...), SpeechResult: str = Form(""),
         return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/explain_issue")
-async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form("")):
+async def explain_issue(CallSid: str = Form(...), SpeechResult: str = Form(""), RecordingUrl: str = Form("")):
     """Handle system info transcription and ask for main issue description"""
     resp = VoiceResponse()
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        if state.get("issue_type") == "systems" and SpeechResult:
-            state['system_info'] = SpeechResult
+        if state.get("issue_type") == "systems":
+            whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
+            state['system_info'] = whisper_text or SpeechResult
             if len(state['system_info'].split()) < 3:
                 resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
