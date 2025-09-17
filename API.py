@@ -103,7 +103,7 @@ def ask_name():
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_type")
-def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), RecordingUrl: str = Form(""), From: str = Form("Unknown")):
+async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), RecordingUrl: str = Form(""), From: str = Form("Unknown")):
     """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
 
