@@ -185,7 +185,7 @@ async def request_ticket(CallSid: str = Form(...), SpeechResult: str = Form(""),
         state = conversation_state.get(CallSid, {})
         if state.get("issue_type").startswith("Request Ticket:"):
             whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
-            state['issue_type'] = whisper_text or SpeechResult
+            state['issue_type'] += whisper_text or SpeechResult
             conversation_state[CallSid] = state
 
         state['issue'] = CallData(
