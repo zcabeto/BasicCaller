@@ -97,7 +97,8 @@ def ask_name():
         action="https://autoreceptionist.onrender.com/issue_type",
         method="POST",
         max_length=5,
-        trim="trim-silence"
+        trim="trim-silence",
+        play_beep=False
     )
     
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
@@ -154,7 +155,8 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
             action="https://autoreceptionist.onrender.com/request_ticket",
             method="POST",
             max_length=5,
-            trim="trim-silence"
+            trim="trim-silence",
+            play_beep=False
         )
         
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
@@ -167,7 +169,8 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
             action="https://autoreceptionist.onrender.com/explain_issue",
             method="POST",
             max_length=7,
-            trim="trim-silence"
+            trim="trim-silence",
+            play_beep=False
         )
         
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
