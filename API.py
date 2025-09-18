@@ -43,7 +43,7 @@ async def verify_twilio_signature(request: Request, call_next):
     return await call_next(request)
 
 @app.post("/voice")
-def start_call(From: str = Form(..., alias="From")):
+def start_call(From: str = Form("Unknown", alias="From")):
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
     with store_lock:
@@ -107,7 +107,7 @@ def ask_name():
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_type")
-async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form(..., alias="From")):
+async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form("Unknown", alias="From")):
     """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
 
@@ -192,7 +192,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/request_ticket")
-async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form(..., alias="From")):
+async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form("Unknown", alias="From")):
     resp = VoiceResponse()
     with store_lock:
         state = conversation_state.get(CallSid, {})
@@ -253,7 +253,7 @@ async def explain_issue(CallSid: str = Form(...), RecordingUrl: str = Form("")):
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form(..., alias="From"), RecordingUrl: str = Form(""), TranscriptionText: str = Form("")):
+async def transcription(CallSid: str = Form(...), From: str = Form("Unknown", alias="From"), RecordingUrl: str = Form(""), TranscriptionText: str = Form("")):
     """create transcription and store the issue"""
     # whisper transcription then summarise
     whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
