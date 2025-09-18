@@ -34,7 +34,6 @@ async def verify_twilio_signature(request: Request, call_next):
     url = str(request.url)
     body = await request.body()
     form_data = dict(await request.form()) if request.method == "POST" else {}
-    print("Incoming Twilio form:", form_data)
 
     if not validator.validate(url, form_data, twilio_signature):    # validate POSTs
         return JSONResponse(
