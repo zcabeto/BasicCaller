@@ -124,7 +124,7 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
         
         state['raw_transcript'] = [{"role": "bot", "message": "Hi there, thank you for calling ThreatSpike Labs. If your call is urgent and you need to speak to a member of staff, please press star"}, {"role": "bot", "message": "We've registered your call as not urgent. Before we start, could you provide your full name and the name of your company?"}]
         state['raw_transcript'].append({"role": "caller", "message": state['name']})
-        state['raw_transcript'].append("role": "bot", "message": "Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4."})
+        state['raw_transcript'].append({"role": "bot", "message": "Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4."})
         conversation_state[CallSid] = state
 
     issue_gather = resp.gather(
