@@ -4,6 +4,7 @@ import os
 import httpx
 import tempfile
 from collections import defaultdict, deque
+from typing import List
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
 import time
@@ -26,7 +27,7 @@ class CallData(BaseModel):
     title: str
     description: str
     priority: str
-    raw_transcription: str
+    raw_transcription: List
     visited: bool
     timestamp: datetime = datetime.utcnow() 
 
