@@ -122,9 +122,9 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
             resp.redirect("https://autoreceptionist.onrender.com/ask_name")
         
-        state['raw_transcript'] = "Bot: 'Hi there, thank you for calling ThreatSpike Labs. If your call is urgent and you need to speak to a member of staff, please press star'\nBot: 'We've registered your call as not urgent. Before we start, could you provide your full name and the name of your company?'\n"
-        state['raw_transcript'] += f"Caller: '{state['name']}'\n"
-        state['raw_transcript'] += "Bot: 'Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4.'\n"
+        state['raw_transcript'] = [{"role": "bot", "message": "Hi there, thank you for calling ThreatSpike Labs. If your call is urgent and you need to speak to a member of staff, please press star"}, {"role": "bot", "message": "We've registered your call as not urgent. Before we start, could you provide your full name and the name of your company?"}]
+        state['raw_transcript'].append({"role": "caller", "message": state['name']})
+        state['raw_transcript'].append("role": "bot", "message": "Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4."})
         conversation_state[CallSid] = state
 
     issue_gather = resp.gather(
@@ -146,14 +146,14 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
             issue_type = {"1": "Request Ticket: ", "2": "systems", "3": "scheduling", "4": "general"}
             if Digits in issue_type:
                 state['issue_type'] = issue_type[Digits]
-                state['raw_transcript'] += f"Caller: {Digits}\n"
+                state['raw_transcript'].append({"role": "caller", "message": f"DTMF:{Digits}"})
             conversation_state[CallSid] = state
 
     state = conversation_state.get(CallSid, {})
 
     if state.get("issue_type").startswith("Request Ticket:"):
         with store_lock:
-            state['raw_transcript'] += "Bot: 'Please clearly state the ticket ID this request regards.'\n"
+            state['raw_transcript'].append({"role": "bot", "message": "Please clearly state the ticket ID this request regards."})
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/get_ticket.mp3")
         resp.record(
             input="speech",
@@ -169,7 +169,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
         resp.hangup()
     elif state.get("issue_type") == "systems":
         with store_lock:
-            state['raw_transcript'] += "Bot: 'Alright, to help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.'\n"
+            state['raw_transcript'].append({"role":"bot", "message":"Alright, to help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in."})
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/sys_info.mp3")
         resp.record(
             input="speech",
@@ -203,8 +203,8 @@ async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""),
             if len(state['issue_type'].split()) < 2:
                 resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
-            state['raw_transcript'] += f"Caller: '{whisper_text}'\n"
-            state['raw_transcript'] += "Bot: 'Thank you for this request. After verifying your identity, we will call you back with ticket updates.'"
+            state['raw_transcript'].append({"role": "caller", "message": whisper_text})
+            state['raw_transcript'].append({"role": "bot", "message": "Thank you for this request. After verifying your identity, we will call you back with ticket updates."})
             conversation_state[CallSid] = state
 
         state['issue'] = CallData(
@@ -237,8 +237,8 @@ async def explain_issue(CallSid: str = Form(...), RecordingUrl: str = Form("")):
             if len(state['system_info'].split()) < 3:
                 resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
-            state['raw_transcript'] += f"Caller: '{state['system_info']}'\n"
-        state['raw_transcript'] += "Bot: 'Ok then. After the beep, please describe the issue or query you have. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a generated ticket.'\n"
+            state['raw_transcript'].append({"role":"caller", "message": state['system_info']})
+        state['raw_transcript'].append({"role":"bot", "message": "Ok then. After the beep, please describe the issue or query you have. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a generated ticket."})
         conversation_state[CallSid] = state
 
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_issue.mp3")
@@ -269,7 +269,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown", al
 
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        state["raw_transcript"] += f"Caller: '{issue_transcription}'"
+        state["raw_transcript"].append({"role":"caller", "message": issue_transcription})
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
             number=state.get('number', From),
