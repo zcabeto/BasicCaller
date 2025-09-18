@@ -47,14 +47,17 @@ def start_call(From: str = Form("Unknown")):
     resp = VoiceResponse()
     with store_lock:
         if not is_e164(From):        # incorrect format can infer a spoofed number
+            print(f"Invalid caller: {From}")
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/blocked.mp3")
             resp.hangup()
         if is_rate_limited(From):    # limit callers calling too many times per hour
+            print(f"Rate-limited caller: {From}")
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/max_calls.mp3")
             resp.hangup()
             return Response(content=str(resp), media_type="text/xml")
         log_request(From)
         if is_blocked(From):  # known malicious numbers
+            print(f"Blocked caller: {From}")
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/blocked.mp3")
             resp.hangup()
             return Response(content=str(resp), media_type="text/xml")
