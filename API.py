@@ -215,7 +215,7 @@ async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""),
             title="None",
             description="None",
             priority="None",
-            raw_transcription="None",
+            raw_transcription=state["raw_transcript"],
             visited=False,
             timestamp=datetime.utcnow()
         )
