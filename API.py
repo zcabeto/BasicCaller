@@ -32,7 +32,6 @@ async def verify_twilio_signature(request: Request, call_next):
 
     twilio_signature = request.headers.get("X-Twilio-Signature", "")
     url = str(request.url)
-    body = await request.body()
     form_data = dict(await request.form()) if request.method == "POST" else {}
 
     if not validator.validate(url, form_data, twilio_signature):    # validate POSTs
@@ -119,6 +118,10 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
         if len(state['name'].split()) < 3:
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_enough.mp3")
             resp.redirect("https://autoreceptionist.onrender.com/ask_name")
+        
+        state['raw_transcript'] = "Bot: 'Hi there, thank you for calling ThreatSpike Labs. If your call is urgent and you need to speak to a member of staff, please press star'\nBot: 'We've registered your call as not urgent. Before we start, could you provide your full name and the name of your company?'\n"
+        state['raw_transcript'] += f"Caller: '{state['name']}'\n"
+        state['raw_transcript'] += "Bot: 'Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4.'\n"
         conversation_state[CallSid] = state
 
     issue_gather = resp.gather(
@@ -128,7 +131,6 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
         timeout=5
     )
     issue_gather.say("Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4.")
-    #issue_gather.play("https://zcabeto.github.io/BasicCaller-Audios/query_option.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_resolve")
@@ -138,17 +140,17 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     if Digits:
         with store_lock:
             state = conversation_state.get(CallSid, {})
-            #state['issue_type'] = "systems" if Digits == "1" else (
-            #    "scheduling" if Digits == "2" else ("general" if Digits == "3" else "unknown"))
-            state['issue_type'] = "systems" if Digits == "2" else (
-                "scheduling" if Digits == "3" else ("general" if Digits == "4" else "unknown"))
-            if Digits == "1":
-                state['issue_type'] = "Request Ticket: "
+            issue_type = {"1": "Request Ticket: ", "2": "systems", "3": "scheduling", "4": "general"}
+            if Digits in issue_type:
+                state['issue_type'] = issue_type[Digits]
+                state['raw_transcript'] += f"Caller: {Digits}\n"
             conversation_state[CallSid] = state
 
     state = conversation_state.get(CallSid, {})
 
     if state.get("issue_type").startswith("Request Ticket:"):
+        with store_lock:
+            state['raw_transcript'] += "Bot: 'Please clearly state the ticket ID this request regards.'\n"
         resp.say("Please clearly state the ticket ID this request regards.")
         resp.record(
             input="speech",
@@ -163,6 +165,8 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
         resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
         resp.hangup()
     elif state.get("issue_type") == "systems":
+        with store_lock:
+            state['raw_transcript'] += "Bot: 'Alright, to help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.'\n"
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/sys_info.mp3")
         resp.record(
             input="speech",
@@ -196,6 +200,8 @@ async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""),
             if len(state['issue_type'].split()) < 2:
                 resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_enough.mp3")
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
+            state['raw_transcript'] += f"Caller: '{whisper_text}'\n"
+            state['raw_transcript'] += "Bot: 'Thank you for this request. After verifying your identity, we will call you back with ticket updates.'"
             conversation_state[CallSid] = state
 
         state['issue'] = CallData(
@@ -228,9 +234,10 @@ async def explain_issue(CallSid: str = Form(...), RecordingUrl: str = Form("")):
             if len(state['system_info'].split()) < 3:
                 resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
+            state['raw_transcript'] += f"Caller: '{state['system_info']}'\n"
+            state['raw_transcript'] += "Bot: 'Ok then. After the beep, please describe the issue or query you have. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a generated ticket.'\n"
             conversation_state[CallSid] = state
 
-    # Now ask for main issue description
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/ask_issue.mp3")
     resp.record(
         transcribe=True,
@@ -245,22 +252,21 @@ async def explain_issue(CallSid: str = Form(...), RecordingUrl: str = Form("")):
 @app.post("/transcription")
 async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), RecordingUrl: str = Form(""), TranscriptionText: str = Form("")):
     """create transcription and store the issue"""
-    with store_lock:
-        state = conversation_state.get(CallSid, {})
-
     # whisper transcription then summarise
     whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
-    raw_transcript = whisper_text or TranscriptionText or "(empty)"
-    if raw_transcript != "(empty)":
-        summary = await generate_summary(raw_transcript)
+    issue_transcription = whisper_text or TranscriptionText or "(empty)"
+    if issue_transcription != "(empty)":
+        summary = await generate_summary(issue_transcription)
     else:
         summary = {
             "title": "Uncategorised Call",
             "description": "Failed AI Summarisation",
             "priority": "Uncategorised"
         }
-    
+
     with store_lock:
+        state = conversation_state.get(CallSid, {})
+        state["raw_transcript"] += f"Caller: '{issue_transcription}'"
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
             number=state.get('number', From),
@@ -269,7 +275,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown"), R
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=raw_transcript,
+            raw_transcription=state["raw_transcript"],
             visited=False,
             timestamp=datetime.utcnow()
         )
