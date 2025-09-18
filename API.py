@@ -32,6 +32,7 @@ async def verify_twilio_signature(request: Request, call_next):
 
     twilio_signature = request.headers.get("X-Twilio-Signature", "")
     url = str(request.url)
+    body = await request.body()
     form_data = dict(await request.form()) if request.method == "POST" else {}
     print("Incoming Twilio form:", form_data)
 
