@@ -47,15 +47,15 @@ def start_call(From: str = Form("Unknown")):
     resp = VoiceResponse()
     with store_lock:
         if not is_e164(From):        # incorrect format can infer a spoofed number
-            resp.play("https://zcabeto.github.io/BasicCaller-Audios/blocked.mp3")
+            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/blocked.mp3")
             resp.hangup()
         if is_rate_limited(From):    # limit callers calling too many times per hour
-            resp.play("https://zcabeto.github.io/BasicCaller-Audios/max_calls.mp3")
+            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/max_calls.mp3")
             resp.hangup()
             return Response(content=str(resp), media_type="text/xml")
         log_request(From)
         if is_blocked(From):  # known malicious numbers
-            resp.play("https://zcabeto.github.io/BasicCaller-Audios/blocked.mp3")
+            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/blocked.mp3")
             resp.hangup()
             return Response(content=str(resp), media_type="text/xml")
         # every time a call is initiated, refresh the stored issues
@@ -67,8 +67,8 @@ def start_call(From: str = Form("Unknown")):
         action="https://autoreceptionist.onrender.com/urgent_call",
         timeout=3
     )
-    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/urgent_call.mp3")
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_urgent.mp3")
+    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/start-call.mp3")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/not_urgent.mp3")
     resp.redirect("https://autoreceptionist.onrender.com/ask_name")
     return Response(content=str(resp), media_type="text/xml")
 
@@ -77,8 +77,7 @@ def urgent_call(Digits: str = Form(...)):
     """only triggers if star (*) is pressed"""
     resp = VoiceResponse()
     if Digits == "*":
-        #resp.say("Connecting you to a staff member now.")
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/transfer_call.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/transfer_call.mp3")
         dial = resp.dial(caller_id="+447367616944")
         dial.number("+447873665370")
     else:
@@ -90,7 +89,7 @@ def urgent_call(Digits: str = Form(...)):
 def ask_name():
     """ask name of caller for log matching"""
     resp = VoiceResponse()
-    resp.say("Could you provide your full name and the name of your company?")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
     resp.record(
         input="speech",
         action="https://autoreceptionist.onrender.com/issue_type",
@@ -100,7 +99,7 @@ def ask_name():
         play_beep=False
     )
     
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_type")
@@ -116,7 +115,7 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
 
         state['name'] = ''.join(char for char in state['name'] if char.isalnum() or char==' ')    # clean: only letters
         if len(state['name'].split()) < 3:
-            resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_enough.mp3")
+            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
             resp.redirect("https://autoreceptionist.onrender.com/ask_name")
         
         state['raw_transcript'] = "Bot: 'Hi there, thank you for calling ThreatSpike Labs. If your call is urgent and you need to speak to a member of staff, please press star'\nBot: 'We've registered your call as not urgent. Before we start, could you provide your full name and the name of your company?'\n"
@@ -130,7 +129,7 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
         action="https://autoreceptionist.onrender.com/issue_resolve",
         timeout=5
     )
-    issue_gather.say("Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4.")
+    issue_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/options.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/issue_resolve")
@@ -151,7 +150,7 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
     if state.get("issue_type").startswith("Request Ticket:"):
         with store_lock:
             state['raw_transcript'] += "Bot: 'Please clearly state the ticket ID this request regards.'\n"
-        resp.say("Please clearly state the ticket ID this request regards.")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/get_ticket.mp3")
         resp.record(
             input="speech",
             action="https://autoreceptionist.onrender.com/request_ticket",
@@ -161,13 +160,13 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
             play_beep=False
         )
         
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
         resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
         resp.hangup()
     elif state.get("issue_type") == "systems":
         with store_lock:
             state['raw_transcript'] += "Bot: 'Alright, to help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in.'\n"
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/sys_info.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/sys_info.mp3")
         resp.record(
             input="speech",
             action="https://autoreceptionist.onrender.com/explain_issue",
@@ -177,13 +176,13 @@ def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
             play_beep=False
         )
         
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
         resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
         resp.hangup()
     elif state.get("issue_type") in ["scheduling", "general"]:
         resp.redirect("/explain_issue")
     else:    # "unknown" issue i.e. invalid number entered
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/invalid.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/invalid.mp3")
         resp.redirect("/issue_type")
 
     return Response(content=str(resp), media_type="text/xml")
@@ -198,7 +197,7 @@ async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""),
             state['issue_type'] += whisper_text or ""
             
             if len(state['issue_type'].split()) < 2:
-                resp.play("https://zcabeto.github.io/BasicCaller-Audios/not_enough.mp3")
+                resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
             state['raw_transcript'] += f"Caller: '{whisper_text}'\n"
             state['raw_transcript'] += "Bot: 'Thank you for this request. After verifying your identity, we will call you back with ticket updates.'"
@@ -218,7 +217,7 @@ async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""),
         )
         issues_store.append(state['issue'])
 
-        resp.say("Thank you for this request. After verifying your identity, we will call you back with ticket updates.")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/got_ticket.mp3")
         return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/explain_issue")
@@ -232,13 +231,13 @@ async def explain_issue(CallSid: str = Form(...), RecordingUrl: str = Form("")):
             state['system_info'] = whisper_text or ""
             
             if len(state['system_info'].split()) < 3:
-                resp.play("https://zcabeto.github.io/BasicCaller-Audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
+                resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
             state['raw_transcript'] += f"Caller: '{state['system_info']}'\n"
             state['raw_transcript'] += "Bot: 'Ok then. After the beep, please describe the issue or query you have. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a generated ticket.'\n"
             conversation_state[CallSid] = state
 
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/ask_issue.mp3")
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_issue.mp3")
     resp.record(
         transcribe=True,
         transcribe_callback="https://autoreceptionist.onrender.com/transcription",
@@ -290,7 +289,7 @@ async def timeout(RecordingDuration: str = Form("")):
         duration = 0
     resp = VoiceResponse()
     if duration > 110:  # hit max length
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/goodbye.mp3")
+        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/goodbye.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
 
