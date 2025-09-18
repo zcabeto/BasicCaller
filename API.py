@@ -238,8 +238,8 @@ async def explain_issue(CallSid: str = Form(...), RecordingUrl: str = Form("")):
                 resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
                 resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
             state['raw_transcript'] += f"Caller: '{state['system_info']}'\n"
-            state['raw_transcript'] += "Bot: 'Ok then. After the beep, please describe the issue or query you have. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a generated ticket.'\n"
-            conversation_state[CallSid] = state
+        state['raw_transcript'] += "Bot: 'Ok then. After the beep, please describe the issue or query you have. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a generated ticket.'\n"
+        conversation_state[CallSid] = state
 
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_issue.mp3")
     resp.record(
