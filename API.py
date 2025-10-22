@@ -46,7 +46,7 @@ async def verify_twilio_signature(request: Request, call_next):
 def start_call(From: str = Form("Unknown", alias="From")):
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
-    resp.say("wait 1 then 2 then 3")
+    resp.say("wait 1 then 2 then 3 then 4 then 5. And now, this call will be recorded")
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/start.mp3")
     resp.record(
         input="speech",
