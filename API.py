@@ -46,6 +46,45 @@ async def verify_twilio_signature(request: Request, call_next):
 def start_call(From: str = Form("Unknown", alias="From")):
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/start.mp3")
+    resp.record(
+        input="speech",
+        action="https://autoreceptionist.onrender.com/stage2",
+        method="POST",
+        max_length=5,
+        trim="trim-silence",
+        play_beep=False
+    )
+    return Response(content=str(resp), media_type="text/xml")
+
+@app.post("/stage2")
+def stage2(From: str = Form("Unknown", alias="From")):
+    """initial call start, filter urgent messages and then get name to move on with"""
+    resp = VoiceResponse()
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/understand.mp3")
+    resp.record(
+        input="speech",
+        action="https://autoreceptionist.onrender.com/stage3",
+        method="POST",
+        max_length=5,
+        trim="trim-silence",
+        play_beep=False
+    )
+    return Response(content=str(resp), media_type="text/xml")
+
+@app.post("/stage3")
+def stage3(From: str = Form("Unknown", alias="From")):
+    """initial call start, filter urgent messages and then get name to move on with"""
+    resp = VoiceResponse()
+    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/create_and_end.mp3")
+    resp.hangup()
+    return Response(content=str(resp), media_type="text/xml")
+    
+"""
+@app.post("/voice")
+def start_call(From: str = Form("Unknown", alias="From")):
+    """initial call start, filter urgent messages and then get name to move on with"""
+    resp = VoiceResponse()
     with store_lock:
         if not is_e164(From):        # incorrect format can infer a spoofed number
             print(f"Invalid caller: {From}")
@@ -297,7 +336,7 @@ async def timeout(RecordingDuration: str = Form("")):
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/goodbye.mp3")
     resp.hangup()
     return Response(content=str(resp), media_type="text/xml")
-
+"""
 
 @app.get("/poll/")
 def poll(authorized: bool = Depends(verify_api_key)):
