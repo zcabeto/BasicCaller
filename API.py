@@ -279,7 +279,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown", al
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=state["raw_transcript"],
+            raw_transcription=raw_transcript,
             visited=False,
             timestamp=datetime.utcnow()
         )
