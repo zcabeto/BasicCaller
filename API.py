@@ -270,6 +270,7 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown", al
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state["raw_transcript"].append({"role":"caller", "message": issue_transcription})
+        raw_transcript = [ message["message"] for message in state['raw_transcript'] ]
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
             number=state.get('number', From),
