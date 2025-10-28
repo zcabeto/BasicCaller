@@ -86,7 +86,7 @@ async def transcribe_with_whisper(audio_url: str) -> str:
         print(f"Whisper transcription failed: {e}")
         return ""
 
-async def execute_prompt(prompt: str):
+async def summary_prompt(prompt: str):
     try:
         resp = await openai_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -119,18 +119,39 @@ async def generate_summary(transcription_text: str):
         "priority": "Uncategorised"
     }
     ai_result = default
-    content = await execute_prompt(prompt)
+    content = await summary_prompt(prompt)
     match = re.search(r'\{.*\}', content, re.DOTALL)
     if match:
         ai_result = json.loads(match.group())
     else:
         ai_result = default
-        print("RawContent:", resp(content))
     required_keys = {"title", "description", "priority"}
     if not isinstance(ai_result, dict) or set(ai_result.keys()) != required_keys:
         print("Failed: bad json")
         return default
     return ai_result
 
+SYSTEM_PROMPT = {"role": "system", "content": "You are an phone call agent that helps callers with issues. Generally these issues are security issues, and you should ask the right questions to get all the information necessary so the team can handle the call. Once you think enough information has been gathered, let them know you will get in touch with the team and they will receive an update soon before saying goodbye."}
+async def conversation_prompt(prompt: str):
+    try:
+        resp = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                SYSTEM_PROMPT,
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0
+        )
+    except Exception as e:
+        print(f"OpenAI error: {e}")
+        return "ERROR IN RESPONSE"
+    return resp.choices[0].message.content.strip()
+
+USER_PROMPT = """Here is a transcription of the conversation between you (the bot) and the caller so far:
+    "{transcript}"
+
+    Please give the next response to their last message: {last_message}
+    """
 async def conversational_agent(transcription_log):
-    return transcription_log[-1]["message"]
+    prompt = USER_PROMPT.format(transcript=transcription_log, last_message=transcription_log[-1]["message"])
+    return await conversation_prompt(prompt)
