@@ -7,7 +7,7 @@ from twilio.request_validator import RequestValidator
 from typing import List
 from datetime import datetime
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, conversational_agent_stream
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, conversation_prompt
 
 
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -84,14 +84,15 @@ def handle_urgent(Digits: str = ""):
     return None
 
 @app.post("/conversation")
-async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), Digits: str = Form("")):
+async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), Digits: str = Form("")):
     urgent_response = handle_urgent(Digits)
     if urgent_response:
         return urgent_response
 
     resp = VoiceResponse()
     with store_lock:
-        state = conversation_state.get(CallSid, {})
+        state = conversation_state.setdefault(CallSid, {})
+        state.setdefault('raw_transcript', [{"role": "bot", "message": "Thank you for calling..." }])
         if not SpeechResult:
             resp.say(state['raw_transcript'][-1]["message"])
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
@@ -100,7 +101,7 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""),
             resp.say(state['raw_transcript'][-1]["message"])
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
         state['raw_transcript'].append({"role": "caller", "message": caller_speech})
-        bot_answer = await conversational_agent_stream(state['raw_transcript'])
+        bot_answer = await conversation_prompt(state['raw_transcript'])
         if bot_answer == "ERROR IN RESPONSE":
             resp.say("Error encountered. Goodbye")
             return Response(content=str(resp), media_type="text/xml")
