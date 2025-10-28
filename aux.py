@@ -131,3 +131,6 @@ async def generate_summary(transcription_text: str):
         print("Failed: bad json")
         return default
     return ai_result
+
+async def conversational_agent(transcription_log):
+    return transcription_log[-1]["message"]
