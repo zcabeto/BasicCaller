@@ -259,7 +259,7 @@ async def conversational_agent_stream(transcription_log):
         last_message=transcription_log[-1]["message"]
     )
     response_text = ""
-    async for event in await openai_client.chat.completions.stream(
+    async for event in openai_client.chat.completions.stream(
         model="gpt-4o-mini",
         messages=[
             SYSTEM_PROMPT,
