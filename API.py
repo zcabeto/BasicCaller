@@ -62,78 +62,25 @@ def start_call(From: str = Form("Unknown", alias="From")):
         # every time a call is initiated, refresh the stored issues
         clear_old_issues(issues_store)
         
-    urgency_gather = resp.gather(
-        input="dtmf",
-        num_digits=1,
-        action="https://autoreceptionist.onrender.com/urgent_call",
-        timeout=3
-    )
-    urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/start-call.mp3")
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/not_urgent.mp3")
-    resp.redirect("https://autoreceptionist.onrender.com/ask_name")
+    resp.say("Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can press STAR at any time to register this as an urgent call and speak to our team. With that out the way, how may I help you today?")
+    resp.redirect("https://autoreceptionist.onrender.com/conversation")
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/urgent_call")
-def urgent_call(Digits: str = Form(...)):
-    """only triggers if star (*) is pressed"""
+def handle_urgent(Digits: str = ""):
     resp = VoiceResponse()
     if Digits == "*":
         resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/transfer_call.mp3")
         dial = resp.dial(caller_id="+447367616944")
         dial.number("+447873665370")
-    else:
-        resp.hangup()
-    
-    return Response(content=str(resp), media_type="text/xml")
-
-@app.post("/ask_name")
-def ask_name():
-    """ask name of caller for log matching"""
-    resp = VoiceResponse()
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
-    resp.record(
-        input="speech",
-        action="https://autoreceptionist.onrender.com/get_type",
-        method="POST",
-        max_length=5,
-        trim="trim-silence",
-        play_beep=False
-    )
-    
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-    return Response(content=str(resp), media_type="text/xml")
-
-@app.post("/get_type")
-async def get_issue(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form("Unknown", alias="From")):
-    """Ask the caller to pick what type of issue they have"""
-    resp = VoiceResponse()
-    with store_lock:
-        state = conversation_state.get(CallSid, {})
-        state['number'] = From
-        whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
-        state['name'] = whisper_text or ""
-        state['name'] = ''.join(char for char in state['name'] if char.isalnum() or char==' ')    # clean: only letters
-        if len(state['name'].split()) < 3:
-            resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-            resp.redirect("https://autoreceptionist.onrender.com/ask_name")
-        
-        state['raw_transcript'] = [{"role": "bot", "message": "Hi there, thank you for calling ThreatSpike Labs. If your call is urgent and you need to speak to a member of staff, please press star"}, {"role": "bot", "message": "We've registered your call as not urgent. Before we start, could you provide your full name and the name of your company?"}]
-        state['raw_transcript'].append({"role": "caller", "message": state['name']})
-        state['raw_transcript'].append({"role": "bot", "message": "Alright, thank you. Now tell me about your issue."})
-        conversation_state[CallSid] = state
-
-    resp.say("Alright, thank you. Now tell me about your issue.")
-    resp.gather(
-        input="speech",
-        action="https://autoreceptionist.onrender.com/conversation",
-        method="POST",
-        timeout=3
-    )
-    return Response(content=str(resp), media_type="text/xml")
-
+        return Response(content=str(resp), media_type="text/xml")
+    return None
 
 @app.post("/conversation")
-async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form("")):
+async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""), Digits: str = Form("")):
+    urgent_response = handle_urgent(Digits)
+    if urgent_response:
+        return urgent_response
+
     resp = VoiceResponse()
     with store_lock:
         state = conversation_state.get(CallSid, {})
@@ -155,7 +102,7 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
         conversation_state[CallSid] = state
         resp.say(bot_answer)
         resp.gather(
-            input="speech",
+            input="dtmf speech",
             action="https://autoreceptionist.onrender.com/conversation",
             method="POST",
             status_callback="https://autoreceptionist.onrender.com/end_call",
@@ -172,10 +119,9 @@ async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", a
         summary = await generate_summary(state['raw_transcript'])
         raw_transcript = [ message["message"] for message in state['raw_transcript'] ]
         state['issue'] = CallData(
-            name=state.get('name', "Caller"),
+            name=summary.get('name', From),
             number=state.get('number', From),
-            system_info=state.get('system_info', "no device information"),
-            issue_type=state.get('issue_type', 'unknown'),
+            system_info=summary.get('system_info', "no device information"),
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
