@@ -149,6 +149,8 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
         if bot_answer == "ERROR IN RESPONSE":
             resp.say("Error encountered. Goodbye")
             resp.hangup()
+        if "goodbye" in bot_answer.lower():
+            resp.hangup()
         state['raw_transcript'].append({"role": "bot", "message": bot_answer})
         conversation_state[CallSid] = state
         resp.say(bot_answer)
