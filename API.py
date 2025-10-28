@@ -128,7 +128,7 @@ async def get_issue(CallSid: str = Form(...), RecordingUrl: str = Form(""), From
         state['raw_transcript'].append({"role": "bot", "message": "Alright, thank you. Now tell me about your issue."})
         conversation_state[CallSid] = state
     print("asking issue now")
-    resp.play("Alright, thank you. Now tell me about your issue.")
+    resp.say("Alright, thank you. Now tell me about your issue.")
     resp.gather(
         input="speech",
         action="https://autoreceptionist.onrender.com/conversation",
@@ -144,11 +144,11 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
     with store_lock:
         state = conversation_state.get(CallSid, {})
         if not SpeechResult:
-            resp.play(state['raw_transcript'][-1]["message"])
+            resp.say(state['raw_transcript'][-1]["message"])
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
         caller_speech = ''.join(char for char in SpeechResult if char.isalnum() or char==' ')    # clean: only letters
         if len(caller_speech.split()) < 3:
-            resp.play(state['raw_transcript'][-1]["message"])
+            resp.say(state['raw_transcript'][-1]["message"])
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
         state['raw_transcript'].append({"role": "caller", "message": caller_speech})
         bot_answer = conversational_agent(state['raw_transcript'])
