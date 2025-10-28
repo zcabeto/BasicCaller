@@ -70,7 +70,7 @@ def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From
         input="speech",
         action="https://autoreceptionist.onrender.com/conversation",
         method="POST",
-        timeout=3
+        timeout=1.5
     )
     return Response(content=str(resp), media_type="text/xml")
 
@@ -115,7 +115,7 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""),
             method="POST",
             status_callback="https://autoreceptionist.onrender.com/end_call",
             status_callback_event=["completed"],
-            timeout=3
+            timeout=1.5
         )
     return Response(content=str(resp), media_type="text/xml")
 
