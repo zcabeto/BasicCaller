@@ -161,8 +161,9 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
     return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/end_call")
-async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", alias="From")):
+async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", alias="From"), CallStatus: str = Form("")):
     with store_lock:
+        print(f"Call {CallSid} ended with status {CallStatus}")
         state = conversation_state.get(CallSid, {})
         summary = await generate_summary(state['raw_transcription'])
         raw_transcript = [ message["message"] for message in state['raw_transcript'] ]
