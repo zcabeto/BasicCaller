@@ -107,7 +107,6 @@ def ask_name():
 async def get_issue(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form("Unknown", alias="From")):
     """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
-    print("entered request issue")
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['number'] = From
@@ -122,7 +121,7 @@ async def get_issue(CallSid: str = Form(...), RecordingUrl: str = Form(""), From
         state['raw_transcript'].append({"role": "caller", "message": state['name']})
         state['raw_transcript'].append({"role": "bot", "message": "Alright, thank you. Now tell me about your issue."})
         conversation_state[CallSid] = state
-    print("asking issue now")
+
     resp.say("Alright, thank you. Now tell me about your issue.")
     resp.gather(
         input="speech",
