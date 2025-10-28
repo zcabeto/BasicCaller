@@ -144,7 +144,8 @@ async def generate_summary(transcription_text: str):
         return default
     return ai_result
 
-SYSTEM_PROMPT = {"role": "system", "content": """
+
+SYSTEM_PROMPT = """
     # Operations Assistant Agent Prompt
 
 ## Identity & Purpose
@@ -228,14 +229,14 @@ Be open to attempting to help with any other questions but reassure that you are
 Threat Spike IT Controls: Web Filtering, SSL Inspection with license exchange, Network tunnels, Phishing detection, Email gateway, Anti-Virus, Device version compliance, EDR file activity, File integrity and activity checking, Net traffic analysis, password manager, removable media (USB) montoring, user and group management, 
 
 Common Issues: Threat Spike agent being on can get in the way of some actions. This requires that we alter the controls to match.                 
-"""}
+"""
 async def conversation_prompt(prompt: str):
     try:
         resp = await openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                SYSTEM_PROMPT,
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": [{"type": "text", "text": SYSTEM_PROMPT }]},
+                {"role": "user", "content": [{"type": "text", "text": prompt }]}
             ],
             temperature=0
         )
