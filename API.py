@@ -85,7 +85,7 @@ def handle_urgent(Digits: str = ""):
         dial.number("+447873665370")
         return Response(content=str(resp), media_type="text/xml")
     return None
-
+'''
 @app.post("/conversation")
 async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), Digits: str = Form("")):
     urgent_response = handle_urgent(Digits)
@@ -122,6 +122,57 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), D
             timeout=2
         )
     return Response(content=str(resp), media_type="text/xml")
+'''
+import re
+from openai import AsyncOpenAI
+openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+@app.post("/conversation")
+async def conversation(request: Request):
+    """Handles speech input and streams out smaller TwiML chunks."""
+    form = await request.form()
+    user_input = form.get("SpeechResult", "")
+
+    # Build the base prompt for your AI receptionist
+    SYSTEM_PROMPT = (
+        "You are an AI phone receptionist. Respond naturally and concisely. "
+        "Keep responses short — 1–2 sentences max."
+    )
+
+    print(f"Caller said: {user_input}")
+
+    # Build the streaming response
+    response_text = ""
+    sentences = []
+    async with openai_client.chat.completions.stream(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_input},
+        ],
+    ) as stream:
+        async for event in stream:
+            if event.type == "message.delta" and event.delta.content:
+                response_text += event.delta.content
+
+                # If we detect a sentence ending, flush a chunk
+                if re.search(r"[.!?]\s", response_text):
+                    sentences.append(response_text.strip())
+                    response_text = ""
+
+    # Add any leftover text
+    if response_text.strip():
+        sentences.append(response_text.strip())
+
+    # Build TwiML that plays each sentence as a separate <Say>
+    twiml = VoiceResponse()
+    for sentence in sentences:
+        twiml.say(sentence, voice="Polly.Joanna")  # or use 'alice'
+
+    # If you want the call to keep listening afterward
+    twiml.redirect("/voice")
+
+    print("Sending TwiML:\n", str(twiml))
+    return Response(content=str(twiml), media_type="text/xml")
 
 @app.post("/end_call")
 async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", alias="From"), CallStatus: str = Form("")):
