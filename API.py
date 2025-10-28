@@ -165,7 +165,7 @@ async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", a
     with store_lock:
         print(f"Call {CallSid} ended with status {CallStatus}")
         state = conversation_state.get(CallSid, {})
-        summary = await generate_summary(state['raw_transcription'])
+        summary = await generate_summary(state['raw_transcript'])
         raw_transcript = [ message["message"] for message in state['raw_transcript'] ]
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
