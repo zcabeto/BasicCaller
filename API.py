@@ -101,7 +101,7 @@ async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), D
             resp.say(state['raw_transcript'][-1]["message"])
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
         state['raw_transcript'].append({"role": "caller", "message": caller_speech})
-        bot_answer = await conversation_prompt(state['raw_transcript'])
+        bot_answer = await conversational_agent(state['raw_transcript'])
         if bot_answer == "ERROR IN RESPONSE":
             resp.say("Error encountered. Goodbye")
             return Response(content=str(resp), media_type="text/xml")
