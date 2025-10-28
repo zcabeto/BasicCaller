@@ -120,6 +120,7 @@ async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", a
         raw_transcript = [ message["message"] for message in state['raw_transcript'] ]
         state['issue'] = CallData(
             name=summary.get('name', From),
+            company=summary.get('company', 'no company information'),
             number=state.get('number', From),
             system_info=summary.get('system_info', "no device information"),
             title=summary['title'],
