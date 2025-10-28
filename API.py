@@ -37,12 +37,7 @@ async def verify_twilio_signature(request: Request, call_next):
             status_code=403,
             content={"detail": "Invalid Twilio signature"}
         )
-    request = Request(
-        request.scope,
-        receive=lambda: {"type": "http.request", "body": body, "more_body": False}
-    )
-    response = await call_next(request)
-    return response
+    return await call_next(request)
 
 @app.post("/voice")
 def start_call(From: str = Form("Unknown", alias="From")):
@@ -76,12 +71,7 @@ def start_call(From: str = Form("Unknown", alias="From")):
     urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/start-call.mp3")
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/not_urgent.mp3")
     resp.redirect("https://autoreceptionist.onrender.com/ask_name")
-    resp.hangup()
-    return Response(
-        content=str(resp),
-        media_type="text/xml",
-        headers={"X-Twilio-StatusCallback": "https://autoreceptionist.onrender.com/end_call"}
-    )
+    return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/urgent_call")
 def urgent_call(Digits: str = Form(...)):
@@ -164,7 +154,9 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
             input="speech",
             action="https://autoreceptionist.onrender.com/conversation",
             method="POST",
-            timeout=3
+            status_callback="https://autoreceptionist.onrender.com/end_call",
+            status_callback_event=["completed"]
+            timeout=2
         )
     return Response(content=str(resp), media_type="text/xml")
 
