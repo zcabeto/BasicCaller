@@ -258,8 +258,7 @@ async def conversational_agent_stream(transcription_log):
         transcript=transcription_log,
         last_message=transcription_log[-1]["message"]
     )
-    response_text = ""
-    stream_manager = openai_client.chat.completions.stream(
+    stream = openai_client.chat.completions.stream(
         model="gpt-4o-mini",
         messages=[
             SYSTEM_PROMPT,
@@ -267,7 +266,8 @@ async def conversational_agent_stream(transcription_log):
         ],
         temperature=0
     )
-    async for event in stream_manager.events():
+    response_text = ""
+    async for event in stream:
         if event.type == "response.output_text.delta":
             response_text += event.delta
     return response_text.strip()
