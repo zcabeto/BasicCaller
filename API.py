@@ -155,7 +155,7 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
             action="https://autoreceptionist.onrender.com/conversation",
             method="POST",
             status_callback="https://autoreceptionist.onrender.com/end_call",
-            status_callback_event=["completed"]
+            status_callback_event=["completed"],
             timeout=2
         )
     return Response(content=str(resp), media_type="text/xml")
