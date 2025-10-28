@@ -41,7 +41,6 @@ async def verify_twilio_signature(request: Request, call_next):
         request.scope,
         receive=lambda: {"type": "http.request", "body": body, "more_body": False}
     )
-
     response = await call_next(request)
     return response
 
@@ -157,7 +156,7 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
             resp.say(state['raw_transcript'][-1]["message"])
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
         state['raw_transcript'].append({"role": "caller", "message": caller_speech})
-        bot_answer = conversational_agent(state['raw_transcript'])
+        bot_answer = await conversational_agent(state['raw_transcript'])
         state['raw_transcript'].append({"role": "bot", "message": bot_answer})
         conversation_state[CallSid] = state
         resp.say(bot_answer)
