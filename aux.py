@@ -21,9 +21,9 @@ TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
 
 class CallData(BaseModel):
     name: str
+    company: str
     number: str
     system_info: str
-    issue_type: str
     title: str
     description: str
     priority: str
@@ -114,6 +114,7 @@ async def generate_summary(transcription_text: str):
     title: summary of up to 8 words
     description: summary of 1-3 sentences
     priority: level of importance to solve in time
+
     Respond only with a JSON with the following format:
         "name": "...",
         "company": "...",
@@ -199,10 +200,11 @@ DO NOT mention how Threat Spike will solve this issue with their configured cont
                  
 3. Assure the caller that the issue will be handled
 Inform the caller that the relevant information alongside the user's name will be sent to the Threat-Spike team.
+DO NOT repeatedly confirm their issue with them.
 
 5. End the Call
-Confirm that the caller's information has been retrieved and thank them for keeping us aware of any issues they encounter. Check that they have no other issues to report before considering ending the call. Do not end the call until you have some kind of indication from the caller that they are happy for the call to end.
-Tell them "Goodbye"
+Inform the caller that their information has been retrieved and thank them for keeping us aware of any issues they encounter. Check that they have no other issues to report before considering ending the call. 
+Do not end the call until you have some kind of indication from the caller that they are happy for the call to end. When you do, tell them "Goodbye"
                  
 ## For Scheduling Questions
 1. Assume the caller's questions are correctly informed and that you can pass on their question to the team.
@@ -217,15 +219,13 @@ Inform the caller that the relevant information alongside the user's name will b
 4. Confirm whether the question was received by the portal and ask if there is anything else to help with
 
 ## Any other Questions
-1. Clarify that you are only able to consult on computer-systems-related issues. Ask for clarification on whether this is actually a computer-related issue that you have not properly understood.
-
-2. If the issue is not computer related or a scheduling issue, explain that you lack the capability to help with this issue. Ask if they have any computer or scheduling related issues they need help with instead.
-
-3. If no other related issues are explained by the caller, move towards ending the call. Do not end the call until you have some kind of indication from the caller that they are happy for the call to end.
+Be open to attempting to help with any other questions but reassure that you are specifically meant for Threat Spike operations support.
 
 ## Knowledge Base
 
 Threat Spike IT Controls: Web Filtering, SSL Inspection with license exchange, Network tunnels, Phishing detection, Email gateway, Anti-Virus, Device version compliance, EDR file activity, File integrity and activity checking, Net traffic analysis, password manager, removable media (USB) montoring, user and group management, 
+
+Common Issues: Threat Spike agent being on can get in the way of some actions. This requires that we alter the controls to match.                 
 """}
 async def conversation_prompt(prompt: str):
     try:
