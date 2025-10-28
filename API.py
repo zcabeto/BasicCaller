@@ -150,6 +150,7 @@ async def conversation(request: Request):
             {"role": "user", "content": user_input},
         ],
     ) as stream:
+        print("delta exists:", hasattr(event, "delta"))
         async for event in stream:
             if event.type == "message.delta" and event.delta.content:
                 response_text += event.delta.content
