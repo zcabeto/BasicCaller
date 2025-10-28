@@ -231,12 +231,13 @@ Threat Spike IT Controls: Web Filtering, SSL Inspection with license exchange, N
 Common Issues: Threat Spike agent being on can get in the way of some actions. This requires that we alter the controls to match.                 
 """
 async def conversation_prompt(prompt: str):
+    print("sysprompt is",type(SYSTEM_PROMPT), "and userprompt is", type(prompt))
     try:
         resp = await openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": [{"type": "text", "text":  SYSTEM_PROMPT}]},
+                {"role": "user", "content": [{"type": "text", "text":  prompt}]}
             ],
             temperature=0
         )
