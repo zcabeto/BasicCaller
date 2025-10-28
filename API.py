@@ -151,14 +151,27 @@ async def conversation(request: Request):
         ],
     ) as stream:
         async for event in stream:
-            print("delta exists:", hasattr(event, "delta"))
-            if event.type == "message.delta" and event.delta.content:
-                response_text += event.delta.content
-                print("response_part:",response_text)
-                # If we detect a sentence ending, flush a chunk
-                if re.search(r"[.!?]\s", response_text):
-                    sentences.append(response_text.strip())
-                    response_text = ""
+            if hasattr(event, "delta"):
+                delta = event.delta
+                chunk = ""
+                if isinstance(delta, dict) and "content" in delta:
+                    chunk = delta["content"]
+                    print("dictionary")
+                elif hasattr(delta, "content"):
+                    chunk = delta.content
+                    print("content")
+                elif hasattr(event, "text"):
+                    chunk = event.text
+                    print("text")
+
+                if chunk:
+                    response_text += chunk
+                    print("response_part:", chunk)
+
+                    # If we detect a sentence ending, flush a chunk
+                    if re.search(r"[.!?]\s", response_text):
+                        sentences.append(response_text.strip())
+                        response_text = ""
 
     if response_text.strip():
         sentences.append(response_text.strip())
