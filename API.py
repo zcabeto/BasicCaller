@@ -159,17 +159,20 @@ async def conversation(request: Request):
                     sentences.append(response_text.strip())
                     response_text = ""
 
-    # Add any leftover text
     if response_text.strip():
         sentences.append(response_text.strip())
 
-    # Build TwiML that plays each sentence as a separate <Say>
     twiml = VoiceResponse()
+    print("outputs:",sentences)
     for sentence in sentences:
         twiml.say(sentence, voice="Polly.Joanna")  # or use 'alice'
 
-    # If you want the call to keep listening afterward
-    twiml.redirect("/voice")
+    twiml.gather(
+        input="speech",
+        action="https://autoreceptionist.onrender.com/conversation",
+        method="POST",
+        timeout=2
+    )
 
     print("Sending TwiML:\n", str(twiml))
     return Response(content=str(twiml), media_type="text/xml")
