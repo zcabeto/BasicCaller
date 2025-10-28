@@ -151,20 +151,13 @@ async def conversation(request: Request):
         ],
     ) as stream:
         async for event in stream:
-            # Only events that have a message delta
-            if event.type == "message.delta":
-                print("has message.delta, Delta:",event.delta)
-                delta = event.delta
-                # delta is a dict in latest SDK
-                chunk = delta.get("content", "")
-                if chunk:
-                    response_text += chunk
-                    print("response_part:", chunk)
-
-                    # Flush complete sentences
-                    if re.search(r"[.!?]\s", response_text):
-                        sentences.append(response_text.strip())
-                        response_text = ""
+            print("EVENT TYPE:", event.type, "DELTA:", event.delta)  # debug
+            if event.type == "response.output_text.delta":
+                response_text += event.delta
+                # flush sentences when punctuation appears
+                if re.search(r"[.!?]\s", response_text):
+                    sentences.append(response_text.strip())
+                    response_text = ""
 
     if response_text.strip():
         sentences.append(response_text.strip())
