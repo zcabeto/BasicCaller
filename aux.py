@@ -125,6 +125,7 @@ async def generate_summary(transcription_text: str):
     default = {
         "name": "Unnamed",
         "company": "Unknown",
+        "system_info": "Unknown",
         "title": "Uncategorised Call",
         "description": "Failed AI Summarisation",
         "priority": "Uncategorised"
