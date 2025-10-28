@@ -7,13 +7,10 @@ from twilio.request_validator import RequestValidator
 from typing import List
 from datetime import datetime
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, transcribe_with_whisper, verify_api_key
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, transcribe_with_whisper, verify_api_key, conversational_agent
 
-TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
+
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
-twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
-
 app = FastAPI()
 store_lock = threading.Lock()
 issues_store: List[CallData] = []
@@ -41,7 +38,7 @@ async def verify_twilio_signature(request: Request, call_next):
             content={"detail": "Invalid Twilio signature"}
         )
     return await call_next(request)
-    
+
 @app.post("/voice")
 def start_call(From: str = Form("Unknown", alias="From")):
     """initial call start, filter urgent messages and then get name to move on with"""
@@ -74,7 +71,12 @@ def start_call(From: str = Form("Unknown", alias="From")):
     urgency_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/start-call.mp3")
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/not_urgent.mp3")
     resp.redirect("https://autoreceptionist.onrender.com/ask_name")
-    return Response(content=str(resp), media_type="text/xml")
+    resp.hangup()
+    return Response(
+        content=str(resp),
+        media_type="text/xml",
+        headers={"X-Twilio-StatusCallback": "https://autoreceptionist.onrender.com/call_ended"}
+    )
 
 @app.post("/urgent_call")
 def urgent_call(Digits: str = Form(...)):
@@ -124,152 +126,49 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
         
         state['raw_transcript'] = [{"role": "bot", "message": "Hi there, thank you for calling ThreatSpike Labs. If your call is urgent and you need to speak to a member of staff, please press star"}, {"role": "bot", "message": "We've registered your call as not urgent. Before we start, could you provide your full name and the name of your company?"}]
         state['raw_transcript'].append({"role": "caller", "message": state['name']})
-        state['raw_transcript'].append({"role": "bot", "message": "Thank you. Now, to request an update on a ticket, press 1. To register a computer or security issue, press 2. For scheduling issues, press 3. And for general inquiries, press 4."})
+        state['raw_transcript'].append({"role": "bot", "message": "Alright, thank you. Now tell me about your issue."})
         conversation_state[CallSid] = state
 
-    issue_gather = resp.gather(
-        input="dtmf",
-        num_digits=1,
-        action="https://autoreceptionist.onrender.com/issue_resolve",
-        timeout=5
+    resp.play("Alright, thank you. Now tell me about your issue.")
+    resp.gather(
+        input="speech",
+        action="https://autoreceptionist.onrender.com/conversation",
+        method="POST",
+        timeout=3
     )
-    issue_gather.play("https://zcabeto.github.io/BasicCaller-Audios/audios/options.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/issue_resolve")
-def issue_resolve(Digits: str = Form(""), CallSid: str = Form(...)):
-    resp = VoiceResponse()
 
-    if Digits:
-        with store_lock:
-            state = conversation_state.get(CallSid, {})
-            issue_type = {"1": "Request Ticket: ", "2": "systems", "3": "scheduling", "4": "general"}
-            if Digits in issue_type:
-                state['issue_type'] = issue_type[Digits]
-                state['raw_transcript'].append({"role": "caller", "message": f"DTMF:{Digits}"})
-            conversation_state[CallSid] = state
-
-    state = conversation_state.get(CallSid, {})
-
-    if state.get("issue_type").startswith("Request Ticket:"):
-        with store_lock:
-            state['raw_transcript'].append({"role": "bot", "message": "Please clearly state the ticket ID this request regards."})
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/get_ticket.mp3")
-        resp.record(
-            input="speech",
-            action="https://autoreceptionist.onrender.com/request_ticket",
-            method="POST",
-            max_length=5,
-            trim="trim-silence",
-            play_beep=False
-        )
-        
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-        resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
-        resp.hangup()
-    elif state.get("issue_type") == "systems":
-        with store_lock:
-            state['raw_transcript'].append({"role":"bot", "message":"Alright, to help us narrow down the nature of your issue, please provide some information about the computer you are using and which location or office you are in."})
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/sys_info.mp3")
-        resp.record(
-            input="speech",
-            action="https://autoreceptionist.onrender.com/explain_issue",
-            method="POST",
-            max_length=7,
-            trim="trim-silence",
-            play_beep=False
-        )
-        
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-        resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
-        resp.hangup()
-    elif state.get("issue_type") in ["scheduling", "general"]:
-        resp.redirect("/explain_issue")
-    else:    # "unknown" issue i.e. invalid number entered
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/invalid.mp3")
-        resp.redirect("/issue_type")
-
-    return Response(content=str(resp), media_type="text/xml")
-
-@app.post("/request_ticket")
-async def request_ticket(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form("Unknown", alias="From")):
+@app.post("/conversation")
+async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form("")):
     resp = VoiceResponse()
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        if state.get("issue_type").startswith("Request Ticket:"):
-            whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
-            state['issue_type'] += whisper_text or ""
-            
-            if len(state['issue_type'].split()) < 2:
-                resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
-                resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
-            state['raw_transcript'].append({"role": "caller", "message": whisper_text})
-            state['raw_transcript'].append({"role": "bot", "message": "Thank you for this request. After verifying your identity, we will call you back with ticket updates."})
-            conversation_state[CallSid] = state
-
-        state['issue'] = CallData(
-            name=state.get('name', "Caller"),
-            number=state.get('number', From),
-            system_info="None",
-            issue_type=state.get('issue_type', 'failed to capture'),
-            title="None",
-            description="None",
-            priority="None",
-            raw_transcription=state["raw_transcript"],
-            visited=False,
-            timestamp=datetime.utcnow()
-        )
-        issues_store.append(state['issue'])
-
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/got_ticket.mp3")
-        return Response(content=str(resp), media_type="text/xml")
-
-@app.post("/explain_issue")
-async def explain_issue(CallSid: str = Form(...), RecordingUrl: str = Form("")):
-    """Handle system info transcription and ask for main issue description"""
-    resp = VoiceResponse()
-    with store_lock:
-        state = conversation_state.get(CallSid, {})
-        if state.get("issue_type") == "systems":
-            whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
-            state['system_info'] = whisper_text or ""
-            
-            if len(state['system_info'].split()) < 3:
-                resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")    # "sorry, I didn't catch that" then loop
-                resp.redirect("https://autoreceptionist.onrender.com/issue_resolve")
-            state['raw_transcript'].append({"role":"caller", "message": state['system_info']})
-        state['raw_transcript'].append({"role":"bot", "message": "Ok then. After the beep, please describe the issue or query you have. Once you are done, please hang up and we will get back to you shortly with a call from our staff or an email showing a generated ticket."})
+        if not SpeechResult:
+            resp.play(state['raw_transcript'][-1]["message"])
+            resp.redirect("https://autoreceptionist.onrender.com/conversation")
+        caller_speech = ''.join(char for char in SpeechResult if char.isalnum() or char==' ')    # clean: only letters
+        if len(caller_speech.split()) < 3:
+            resp.play(state['raw_transcript'][-1]["message"])
+            resp.redirect("https://autoreceptionist.onrender.com/conversation")
+        state['raw_transcript'].append({"role": "caller", "message": caller_speech})
+        bot_answer = conversational_agent(state['raw_transcript'])
+        state['raw_transcript'].append({"role": "bot", "message": bot_answer})
         conversation_state[CallSid] = state
-
-    resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_issue.mp3")
-    resp.record(
-        transcribe=True,
-        transcribe_callback="https://autoreceptionist.onrender.com/transcription",
-        action="https://autoreceptionist.onrender.com/timeout",    # end of 120s
-        max_length=120,
-        play_beep=True
-    )
-    resp.hangup()
+        resp.say(bot_answer)
+        resp.gather(
+            input="speech",
+            action="https://autoreceptionist.onrender.com/conversation",
+            method="POST",
+            timeout=3
+        )
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/transcription")
-async def transcription(CallSid: str = Form(...), From: str = Form("Unknown", alias="From"), RecordingUrl: str = Form(""), TranscriptionText: str = Form("")):
-    """create transcription and store the issue"""
-    # whisper transcription then summarise
-    whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
-    issue_transcription = whisper_text or TranscriptionText or "(empty)"
-    if issue_transcription != "(empty)":
-        summary = await generate_summary(issue_transcription)
-    else:
-        summary = {
-            "title": "Uncategorised Call",
-            "description": "Failed AI Summarisation",
-            "priority": "Uncategorised"
-        }
-
+@app.post("/end-call")
+async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", alias="From")):
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        state["raw_transcript"].append({"role":"caller", "message": issue_transcription})
+        summary = await generate_summary(state['raw_transcription'])
         raw_transcript = [ message["message"] for message in state['raw_transcript'] ]
         state['issue'] = CallData(
             name=state.get('name', "Caller"),
@@ -285,18 +184,6 @@ async def transcription(CallSid: str = Form(...), From: str = Form("Unknown", al
         )
         issues_store.append(state['issue'])
         return {"status": "saved"}
-
-@app.post("/timeout")
-async def timeout(RecordingDuration: str = Form("")):
-    try:
-        duration = int(RecordingDuration or 0)
-    except ValueError:
-        duration = 0
-    resp = VoiceResponse()
-    if duration > 110:  # hit max length
-        resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/goodbye.mp3")
-    resp.hangup()
-    return Response(content=str(resp), media_type="text/xml")
 
 @app.get("/poll/")
 def poll(authorized: bool = Depends(verify_api_key)):
