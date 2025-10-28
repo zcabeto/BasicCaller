@@ -75,7 +75,7 @@ def start_call(From: str = Form("Unknown", alias="From")):
     return Response(
         content=str(resp),
         media_type="text/xml",
-        headers={"X-Twilio-StatusCallback": "https://autoreceptionist.onrender.com/call_ended"}
+        headers={"X-Twilio-StatusCallback": "https://autoreceptionist.onrender.com/end_call"}
     )
 
 @app.post("/urgent_call")
@@ -98,7 +98,7 @@ def ask_name():
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/ask_name.mp3")
     resp.record(
         input="speech",
-        action="https://autoreceptionist.onrender.com/issue_type",
+        action="https://autoreceptionist.onrender.com/get_type",
         method="POST",
         max_length=5,
         trim="trim-silence",
@@ -108,17 +108,16 @@ def ask_name():
     resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/issue_type")
-async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form("Unknown", alias="From")):
+@app.post("/get_type")
+async def get_issue(CallSid: str = Form(...), RecordingUrl: str = Form(""), From: str = Form("Unknown", alias="From")):
     """Ask the caller to pick what type of issue they have"""
     resp = VoiceResponse()
-
+    print("entered request issue")
     with store_lock:
         state = conversation_state.get(CallSid, {})
         state['number'] = From
         whisper_text = await transcribe_with_whisper(f"{RecordingUrl}.wav") if RecordingUrl else ""
         state['name'] = whisper_text or ""
-
         state['name'] = ''.join(char for char in state['name'] if char.isalnum() or char==' ')    # clean: only letters
         if len(state['name'].split()) < 3:
             resp.play("https://zcabeto.github.io/BasicCaller-Audios/audios/no_input.mp3")
@@ -128,7 +127,7 @@ async def get_issue_type(CallSid: str = Form(...), RecordingUrl: str = Form(""),
         state['raw_transcript'].append({"role": "caller", "message": state['name']})
         state['raw_transcript'].append({"role": "bot", "message": "Alright, thank you. Now tell me about your issue."})
         conversation_state[CallSid] = state
-
+    print("asking issue now")
     resp.play("Alright, thank you. Now tell me about your issue.")
     resp.gather(
         input="speech",
@@ -164,7 +163,7 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
         )
     return Response(content=str(resp), media_type="text/xml")
 
-@app.post("/end-call")
+@app.post("/end_call")
 async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", alias="From")):
     with store_lock:
         state = conversation_state.get(CallSid, {})
