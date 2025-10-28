@@ -51,7 +51,7 @@ def start_streaming_call():
     """Initiate real-time streaming connection instead of Gather."""
     resp = VoiceResponse()
     connect = resp.connect()
-    connect.stream(url="wss://your-domain.com/stream")  # <- replace with your HTTPS/WSS domain
+    connect.stream(url="https://autoreceptionist.onrender.com/stream")  # <- replace with your HTTPS/WSS domain
     return Response(content=str(resp), media_type="text/xml")
 
 @app.websocket("/stream")
