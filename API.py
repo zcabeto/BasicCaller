@@ -40,7 +40,7 @@ async def verify_twilio_signature(request: Request, call_next):
     return await call_next(request)
 
 @app.post("/voice")
-def start_call(From: str = Form("Unknown", alias="From")):
+def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From")):
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
     with store_lock:
@@ -61,7 +61,10 @@ def start_call(From: str = Form("Unknown", alias="From")):
             return Response(content=str(resp), media_type="text/xml")
         # every time a call is initiated, refresh the stored issues
         clear_old_issues(issues_store)
-        
+        state = conversation_state.get(CallSid, {})
+        state['raw_transcript'] = [{"role": "bot", "message": "Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can press STAR at any time to register this as an urgent call and speak to our team. With that out the way, how may I help you today?"}]
+        conversation_state[CallSid] = state
+
     resp.say("Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can press STAR at any time to register this as an urgent call and speak to our team. With that out the way, how may I help you today?")
     resp.redirect("https://autoreceptionist.onrender.com/conversation")
     return Response(content=str(resp), media_type="text/xml")
