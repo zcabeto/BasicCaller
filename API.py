@@ -146,6 +146,9 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""))
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
         state['raw_transcript'].append({"role": "caller", "message": caller_speech})
         bot_answer = await conversational_agent(state['raw_transcript'])
+        if bot_answer == "ERROR IN RESPONSE":
+            resp.say("Error encountered. Goodbye")
+            resp.hangup()
         state['raw_transcript'].append({"role": "bot", "message": bot_answer})
         conversation_state[CallSid] = state
         resp.say(bot_answer)
