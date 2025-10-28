@@ -232,7 +232,7 @@ Common Issues: Threat Spike agent being on can get in the way of some actions. T
 async def conversation_prompt(prompt: str):
     try:
         resp = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",
             messages=[
                 SYSTEM_PROMPT,
                 {"role": "user", "content": prompt}
@@ -252,22 +252,3 @@ USER_PROMPT = """Here is a transcription of the conversation between you (the bo
 async def conversational_agent(transcription_log):
     prompt = USER_PROMPT.format(transcript=transcription_log, last_message=transcription_log[-1]["message"])
     return await conversation_prompt(prompt)
-
-async def conversational_agent_stream(transcription_log):
-    prompt = USER_PROMPT.format(
-        transcript=transcription_log,
-        last_message=transcription_log[-1]["message"]
-    )
-    stream = openai_client.chat.completions.stream(
-        model="gpt-4o-mini",
-        messages=[
-            SYSTEM_PROMPT,
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0
-    )
-    response_text = ""
-    async for event in stream:
-        if event.type == "response.output_text.delta":
-            response_text += event.delta
-    return response_text.strip()
