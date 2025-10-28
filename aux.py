@@ -146,7 +146,7 @@ async def generate_summary(transcription_text: str):
 
 
 SYSTEM_PROMPT = """
-    # Operations Assistant Agent Prompt
+# Operations Assistant Agent Prompt
 
 ## Identity & Purpose
 
@@ -224,7 +224,7 @@ Inform the caller that the relevant information alongside the user's name will b
 ## Any other Questions
 Be open to attempting to help with any other questions but reassure that you are specifically meant for Threat Spike operations support.
 
-## Knowledge Base
+## Knowledge Base
 
 Threat Spike IT Controls: Web Filtering, SSL Inspection with license exchange, Network tunnels, Phishing detection, Email gateway, Anti-Virus, Device version compliance, EDR file activity, File integrity and activity checking, Net traffic analysis, password manager, removable media (USB) montoring, user and group management, 
 
@@ -235,8 +235,8 @@ async def conversation_prompt(prompt: str):
         resp = await openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "user", "content": [{"type": "text", "text": SYSTEM_PROMPT }]},
-                {"role": "user", "content": [{"type": "text", "text": prompt }]}
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
             ],
             temperature=0
         )
