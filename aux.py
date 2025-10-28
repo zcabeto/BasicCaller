@@ -252,6 +252,9 @@ USER_PROMPT = """Here is a transcription of the conversation between you (the bo
     Please give the next response to their last message: {last_message}
     """
 async def conversational_agent(transcription_log):
+    print("as log:",transcription_log)
     transcription_text = '\n'.join(f"{msg['role']}: {msg['message']}" for msg in transcription_log)
+    print("as text:",transcription_text)
     prompt = USER_PROMPT.format(transcript=transcription_text, last_message=transcription_log[-1]["message"])
+    print("full prompt:", prompt)
     return await conversation_prompt(prompt)
