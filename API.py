@@ -37,7 +37,13 @@ async def verify_twilio_signature(request: Request, call_next):
             status_code=403,
             content={"detail": "Invalid Twilio signature"}
         )
-    return await call_next(request)
+    request = Request(
+        request.scope,
+        receive=lambda: {"type": "http.request", "body": body, "more_body": False}
+    )
+
+    response = await call_next(request)
+    return response
 
 @app.post("/voice")
 def start_call(From: str = Form("Unknown", alias="From")):
