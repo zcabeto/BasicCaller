@@ -152,7 +152,7 @@ async def conversation(request: Request):
     ) as stream:
         async for event in stream:
             print("EVENT TYPE:", event.type, "DELTA:", event.delta if hasattr(event,"delta") else "None")  # debug
-            if event.type == "response.output_text.delta":
+            if event.type == "content.delta":
                 response_text += event.delta
                 # flush sentences when punctuation appears
                 if re.search(r"[.!?]\s", response_text):
