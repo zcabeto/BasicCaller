@@ -231,7 +231,6 @@ Threat Spike IT Controls: Web Filtering, SSL Inspection with license exchange, N
 Common Issues: Threat Spike agent being on can get in the way of some actions. This requires that we alter the controls to match.                 
 """
 async def conversation_prompt(prompt: str):
-    print("sysprompt is",type(SYSTEM_PROMPT), "and userprompt is", type(prompt))
     try:
         resp = await openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -252,9 +251,5 @@ USER_PROMPT = """Here is a transcription of the conversation between you (the bo
     Please give the next response to their last message: {last_message}
     """
 async def conversational_agent(transcription_log):
-    print("as log:",transcription_log)
-    transcription_text = '\n'.join(f"{msg['role']}: {msg['message']}" for msg in transcription_log)
-    print("as text:",transcription_text)
-    prompt = USER_PROMPT.format(transcript=transcription_text, last_message=transcription_log[-1]["message"])
-    print("full prompt:", prompt)
+    prompt = USER_PROMPT.format(transcript=transcription_log, last_message=transcription_log[-1]["message"])
     return await conversation_prompt(prompt)
