@@ -153,7 +153,7 @@ async def conversation(request: Request):
         async for event in stream:
             if event.type == "message.delta" and event.delta.content:
                 response_text += event.delta.content
-
+                print("response_part:",response_text)
                 # If we detect a sentence ending, flush a chunk
                 if re.search(r"[.!?]\s", response_text):
                     sentences.append(response_text.strip())
