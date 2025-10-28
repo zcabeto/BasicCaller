@@ -140,9 +140,9 @@ async def conversation(request: Request):
 
     print(f"Caller said: {user_input}")
 
-    # Build the streaming response
     response_text = ""
     sentences = []
+
     async with openai_client.chat.completions.stream(
         model="gpt-4o-mini",
         messages=[
@@ -151,30 +151,24 @@ async def conversation(request: Request):
         ],
     ) as stream:
         async for event in stream:
-            if hasattr(event, "delta"):
+            # Only events that have a message delta
+            if event.type == "message.delta":
+                print("has message.delta, Delta:",event.delta)
                 delta = event.delta
-                chunk = ""
-                if isinstance(delta, dict) and "content" in delta:
-                    chunk = delta["content"]
-                    print("dictionary")
-                elif hasattr(delta, "content"):
-                    chunk = delta.content
-                    print("content")
-                elif hasattr(event, "text"):
-                    chunk = event.text
-                    print("text")
-
+                # delta is a dict in latest SDK
+                chunk = delta.get("content", "")
                 if chunk:
                     response_text += chunk
                     print("response_part:", chunk)
 
-                    # If we detect a sentence ending, flush a chunk
+                    # Flush complete sentences
                     if re.search(r"[.!?]\s", response_text):
                         sentences.append(response_text.strip())
                         response_text = ""
 
     if response_text.strip():
         sentences.append(response_text.strip())
+
 
     twiml = VoiceResponse()
     print("outputs:",sentences)
