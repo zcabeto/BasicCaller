@@ -107,13 +107,24 @@ async def generate_summary(transcription_text: str):
     Caller transcription:
     "{transcription_text}"
 
-    Please extract a short descriptive title (up to 8 words), a longer summary (1-3 sentences), and a priority level.
-    Respond only with a JSON with the following format: 
+    Please extract some information from the transcript. 
+    name: full name as given
+    company: company name and location if given 
+    system_info: any information about the specific system the caller works on (if mentioned). If not mentioned, answer "Unknown"
+    title: summary of up to 8 words
+    description: summary of 1-3 sentences
+    priority: level of importance to solve in time
+    Respond only with a JSON with the following format:
+        "name": "...",
+        "company": "...",
+        "system_info": "...|Unknown",
         "title": "...",
         "description": "...",
         "priority": "Critical|High|Medium|Low|None"
     """
     default = {
+        "name": "Unnamed",
+        "company": "Unknown",
         "title": "Uncategorised Call",
         "description": "Failed AI Summarisation",
         "priority": "Uncategorised"
@@ -125,7 +136,7 @@ async def generate_summary(transcription_text: str):
         ai_result = json.loads(match.group())
     else:
         ai_result = default
-    required_keys = {"title", "description", "priority"}
+    required_keys = {"name", "company", "system_info", "title", "description", "priority"}
     if not isinstance(ai_result, dict) or set(ai_result.keys()) != required_keys:
         print("Failed: bad json")
         return default
@@ -168,9 +179,9 @@ Use expert-level computer systems knowledge in all reasoning. Not all problems a
 
 ## Conversation Flow
 ### Introduction
-Start with: "Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. How may I help you today?"
+Start with the "Thank you for calling Threat Spike Labs..." introduction
 
-If the caller immediately mentions an issue : "I'd be happy to help you with that. Let me first get your name first so we can co-ordinate a response."
+If the caller immediately mentions an issue : "I'd be happy to help you with that. Let me first get your name and the name of your company so we can co-ordinate a response."
 If the caller refuses to give a name : "Without a name or any link to the company you work at, I cannot properly log any issues you report. Please provide a name to link to this call."
 If the caller still refuses, end tell them you cannot help and end the call.
 
