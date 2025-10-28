@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Form, BackgroundTasks, Query, Request, Depends
+from fastapi import FastAPI, Form, Request, Depends
 from fastapi.responses import Response, JSONResponse
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
@@ -7,7 +7,7 @@ from twilio.request_validator import RequestValidator
 from typing import List
 from datetime import datetime
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, transcribe_with_whisper, verify_api_key, conversational_agent
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, conversational_agent_stream
 
 
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -70,7 +70,7 @@ def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From
         input="speech",
         action="https://autoreceptionist.onrender.com/conversation",
         method="POST",
-        timeout=1.5
+        timeout=2
     )
     return Response(content=str(resp), media_type="text/xml")
 
@@ -100,22 +100,22 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""),
             resp.say(state['raw_transcript'][-1]["message"])
             resp.redirect("https://autoreceptionist.onrender.com/conversation")
         state['raw_transcript'].append({"role": "caller", "message": caller_speech})
-        bot_answer = await conversational_agent(state['raw_transcript'])
+        bot_answer = await conversational_agent_stream(state['raw_transcript'])
         if bot_answer == "ERROR IN RESPONSE":
             resp.say("Error encountered. Goodbye")
-            return Response(content=str(resp), media_type="text/xml")
-        if "goodbye" in bot_answer.lower():
             return Response(content=str(resp), media_type="text/xml")
         state['raw_transcript'].append({"role": "bot", "message": bot_answer})
         conversation_state[CallSid] = state
         resp.say(bot_answer)
+        if "goodbye" in bot_answer.lower():
+            return Response(content=str(resp), media_type="text/xml")
         resp.gather(
             input="dtmf speech",
             action="https://autoreceptionist.onrender.com/conversation",
             method="POST",
             status_callback="https://autoreceptionist.onrender.com/end_call",
             status_callback_event=["completed"],
-            timeout=1.5
+            timeout=2
         )
     return Response(content=str(resp), media_type="text/xml")
 
