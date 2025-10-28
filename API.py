@@ -7,7 +7,7 @@ from twilio.request_validator import RequestValidator
 from typing import List
 from datetime import datetime
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, conversation_prompt
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, conversational_agent
 
 
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
