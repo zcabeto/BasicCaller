@@ -66,7 +66,12 @@ def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From
         conversation_state[CallSid] = state
 
     resp.say("Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can press STAR at any time to register this as an urgent call and speak to our team. With that out the way, how may I help you today?")
-    resp.redirect("https://autoreceptionist.onrender.com/conversation")
+    resp.gather(
+        input="speech",
+        action="https://autoreceptionist.onrender.com/conversation",
+        method="POST",
+        timeout=3
+    )
     return Response(content=str(resp), media_type="text/xml")
 
 def handle_urgent(Digits: str = ""):
@@ -110,7 +115,7 @@ async def get_issue_type(CallSid: str = Form(...), SpeechResult: str = Form(""),
             method="POST",
             status_callback="https://autoreceptionist.onrender.com/end_call",
             status_callback_event=["completed"],
-            timeout=2
+            timeout=3
         )
     return Response(content=str(resp), media_type="text/xml")
 
