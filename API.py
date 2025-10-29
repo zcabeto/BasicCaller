@@ -1,6 +1,6 @@
 import os
 from fastapi import FastAPI, Form, Request, Depends
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response, JSONResponse, FileResponse
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
 from twilio.request_validator import RequestValidator
@@ -8,6 +8,7 @@ from typing import List
 from datetime import datetime
 import threading
 import re
+from uuid import uuid4
 from openai import AsyncOpenAI
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT
@@ -42,8 +43,27 @@ async def verify_twilio_signature(request: Request, call_next):
         )
     return await call_next(request)
 
-def speak(resp, text: str):
+@app.get("/audio/{filename}")
+async def serve_audio(filename: str):
+    file_path = f"/tmp/{filename}"
+    if not os.path.exists(file_path):
+        return Response(status_code=404)
+    return FileResponse(file_path, media_type="audio/mpeg")
+
+async def speak(resp, text: str):
     resp.say(text)
+    tts_resp = await openai_client.audio.speech.create(
+        model="gpt-4o-mini-tts",
+        voice="alloy",
+        input=text
+    )
+    audio_bytes = await tts_resp.read()
+    file_id = str(uuid4()) + ".mp3"
+    path = f"/tmp/{file_id}"
+    with open(path, "wb") as f:
+        f.write(audio_bytes)
+    audio_url = f"https://autoreceptionist.onrender.com/audio/{file_id}"
+    resp.play(audio_url)
 
 @app.post("/voice")
 def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From")):
@@ -91,16 +111,15 @@ def handle_urgent(Digits: str = ""):
 
 @app.post("/conversation")
 async def conversation(request: Request, Digits: str = Form("")):
-    """Handles speech input and streams out smaller TwiML chunks."""
     urgent_response = handle_urgent(Digits)
     if urgent_response:
         return urgent_response
+
     form = await request.form()
     user_input = form.get("SpeechResult", "")
     print(f"Caller said: {user_input}")
     response_text = ""
-    sentences = []
-    twiml = VoiceResponse()
+    first_sentence = None
     async with openai_client.chat.completions.stream(
         model="gpt-4o-mini",
         messages=[
@@ -109,23 +128,25 @@ async def conversation(request: Request, Digits: str = Form("")):
         ],
     ) as stream:
         async for event in stream:
-            if event.type == "content.delta":
+            if event.type == "response.output_text.delta":
                 response_text += event.delta
+                # stop as soon as we hit the first sentence
                 if re.search(r"[.!?]\s", response_text):
-                    sentence = response_text.strip()
-                    twiml.say(sentence, voice="Polly.Joanna")
-                    sentences.append(sentence)
-                    response_text = ""
-
-    twiml.say(response_text.strip(), voice="Polly.Joanna")
-    twiml.gather(
-        input="dtmf speech",
+                    first_sentence = response_text.strip()
+                    break
+    resp = VoiceResponse()
+    if first_sentence:
+        speak(resp,first_sentence, voice="Polly.Joanna")
+    else:
+        speak(resp,response_text.strip() or "Sorry, I didn't catch that.", voice="Polly.Joanna")
+    resp.gather(
+        input="speech dtmf",
         action="https://autoreceptionist.onrender.com/conversation",
         method="POST",
         timeout=2
     )
-    print("Sending TwiML:\n", str(twiml))
-    return Response(content=str(twiml), media_type="text/xml")
+    print("Sending partial TwiML:\n", str(resp))
+    return Response(content=str(resp), media_type="text/xml")
 
 @app.post("/end_call")
 async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", alias="From"), CallStatus: str = Form("")):
