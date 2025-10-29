@@ -109,7 +109,7 @@ async def generate_summary(transcription_text: str):
 
     Please extract some information from the transcript. 
     name: full name as given
-    company: company name and location if given 
+    company: caller's (NOT ThreatSpike) company name and location if given
     system_info: any information about the specific system the caller works on (if mentioned). If not mentioned, answer "Unknown"
     title: summary of up to 8 words
     description: summary of 1-3 sentences
@@ -248,7 +248,7 @@ async def conversation_prompt(prompt: str):
 USER_PROMPT = """Here is a transcription of the conversation between you (the bot) and the caller so far:
     "{transcript}"
 
-    Please give the next response to their last message: {last_message}
+    Please give the next response (ONLY ONE OR TWO SENTENCES) to their last message: {last_message}
     """
 async def conversational_agent(transcription_log):
     prompt = USER_PROMPT.format(transcript=transcription_log, last_message=transcription_log[-1]["message"])
