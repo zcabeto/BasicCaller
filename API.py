@@ -122,7 +122,9 @@ async def conversation(request: Request, Digits: str = Form(""), CallSid: str = 
     user_input = form.get("SpeechResult", "")
     with store_lock:
         state = conversation_state.get(CallSid, {})
-        user_prompt = USER_PROMPT.format(transcript=state['raw_transcript'], last_message=state['raw_transcript'][-1]["message"])
+        state['raw_transcript'].append({"role":"caller", "message":user_input})
+        user_prompt = USER_PROMPT.format(transcript=state['raw_transcript'], last_message=user_input)
+        conversation_state[CallSid] = state
     print(f"Caller said: {user_input}")
     response_text = ""
     first_chunk = None
@@ -150,6 +152,10 @@ async def conversation(request: Request, Digits: str = Form(""), CallSid: str = 
                     break
                 else:
                     first_chunk = response_text.strip()
+    with store_lock:
+        state = conversation_state.get(CallSid, {})
+        state['raw_transcript'].append({"role":"bot", "message":first_chunk})
+        conversation_state[CallSid] = state
     resp = VoiceResponse()
     if first_chunk:
         await speak(resp,first_chunk)
