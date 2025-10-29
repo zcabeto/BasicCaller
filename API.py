@@ -10,8 +10,7 @@ import threading
 import re
 from uuid import uuid4
 from openai import AsyncOpenAI
-openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT, USER_PROMPT
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT, USER_PROMPT, openai_client
 
 
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -144,6 +143,8 @@ async def conversation(request: Request, Digits: str = Form(""), CallSid: str = 
                             break
                     first_chunk = response_text[:split_point].strip()
                     break
+                else:
+                    first_chunk = response_text.strip()
     resp = VoiceResponse()
     if first_chunk:
         await speak(resp,first_chunk)
