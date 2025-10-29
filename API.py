@@ -66,7 +66,7 @@ async def speak(resp, text: str):
     resp.play(audio_url)
 
 @app.post("/voice")
-def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From")):
+async def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From")):
     """initial call start, filter urgent messages and then get name to move on with"""
     resp = VoiceResponse()
     with store_lock:
@@ -91,7 +91,7 @@ def start_call(CallSid: str = Form(...), From: str = Form("Unknown", alias="From
         state['raw_transcript'] = [{"role": "bot", "message": "Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can press STAR at any time to register this as an urgent call and speak to our team. With that out the way, how may I help you today?"}]
         conversation_state[CallSid] = state
 
-    speak(resp,"Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can press STAR at any time to register this as an urgent call and speak to our team. With that out the way, how may I help you today?")
+    await speak(resp,"Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can press STAR at any time to register this as an urgent call and speak to our team. With that out the way, how may I help you today?")
     resp.gather(
         input="speech",
         action="https://autoreceptionist.onrender.com/conversation",
@@ -136,9 +136,9 @@ async def conversation(request: Request, Digits: str = Form("")):
                     break
     resp = VoiceResponse()
     if first_sentence:
-        speak(resp,first_sentence)
+        await speak(resp,first_sentence)
     else:
-        speak(resp,response_text.strip() or "Sorry, I didn't catch that.")
+        await speak(resp,response_text.strip() or "Sorry, I didn't catch that.")
     if "goodbye" in first_sentence.lower():
         return Response(content=str(resp), media_type="text/xml")
     resp.gather(
