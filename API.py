@@ -9,7 +9,7 @@ from datetime import datetime
 import threading
 import re
 from uuid import uuid4
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT, USER_PROMPT, openai_client
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT, openai_client
 
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
 app = FastAPI()
@@ -104,6 +104,13 @@ def handle_urgent(Digits: str = ""):
         dial.number("+447873665370")
         return Response(content=str(resp), media_type="text/xml")
     return None
+
+USER_PROMPT = """
+Here is a transcription of the conversation between you (the bot) and the caller so far:
+    "{transcript}"
+
+    Please give the next response (ONLY ONE OR TWO SENTENCES) to their last message: {last_message}
+"""
 
 @app.post("/conversation")
 async def conversation(request: Request, Digits: str = Form(""), CallSid: str = Form(...)):
