@@ -130,7 +130,7 @@ async def conversation(request: Request, Digits: str = Form(""), CallSid: str = 
         ],
     ) as stream:
         async for event in stream:
-            if event.type == "response.output_text.delta":
+            if event.type == "content.delta":
                 response_text += event.delta
                 # stop as soon as we hit the first sentence
                 if re.search(r"[.!?]\s", response_text):
