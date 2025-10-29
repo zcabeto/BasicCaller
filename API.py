@@ -7,7 +7,10 @@ from twilio.request_validator import RequestValidator
 from typing import List
 from datetime import datetime
 import threading
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, conversational_agent
+import re
+from openai import AsyncOpenAI
+openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT
 
 
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -85,64 +88,19 @@ def handle_urgent(Digits: str = ""):
         dial.number("+447873665370")
         return Response(content=str(resp), media_type="text/xml")
     return None
-'''
+
 @app.post("/conversation")
-async def conversation(CallSid: str = Form(...), SpeechResult: str = Form(""), Digits: str = Form("")):
+async def conversation(request: Request, Digits: str = Form("")):
+    """Handles speech input and streams out smaller TwiML chunks."""
     urgent_response = handle_urgent(Digits)
     if urgent_response:
         return urgent_response
-
-    resp = VoiceResponse()
-    with store_lock:
-        state = conversation_state.setdefault(CallSid, {})
-        state.setdefault('raw_transcript', [{"role": "bot", "message": "Thank you for calling..." }])
-        if not SpeechResult:
-            speak(resp,state['raw_transcript'][-1]["message"])
-            resp.redirect("https://autoreceptionist.onrender.com/conversation")
-        caller_speech = ''.join(char for char in SpeechResult if char.isalnum() or char==' ')    # clean: only letters
-        if len(caller_speech.split()) < 3:
-            speak(resp,state['raw_transcript'][-1]["message"])
-            resp.redirect("https://autoreceptionist.onrender.com/conversation")
-        state['raw_transcript'].append({"role": "caller", "message": caller_speech})
-        bot_answer = await conversational_agent(state['raw_transcript'])
-        if bot_answer == "ERROR IN RESPONSE":
-            resp.say("Error encountered. Goodbye")
-            return Response(content=str(resp), media_type="text/xml")
-        state['raw_transcript'].append({"role": "bot", "message": bot_answer})
-        conversation_state[CallSid] = state
-        speak(resp,bot_answer)
-        if "goodbye" in bot_answer.lower():
-            return Response(content=str(resp), media_type="text/xml")
-        resp.gather(
-            input="dtmf speech",
-            action="https://autoreceptionist.onrender.com/conversation",
-            method="POST",
-            status_callback="https://autoreceptionist.onrender.com/end_call",
-            status_callback_event=["completed"],
-            timeout=2
-        )
-    return Response(content=str(resp), media_type="text/xml")
-'''
-import re
-from openai import AsyncOpenAI
-openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-@app.post("/conversation")
-async def conversation(request: Request):
-    """Handles speech input and streams out smaller TwiML chunks."""
     form = await request.form()
     user_input = form.get("SpeechResult", "")
-
-    # Build the base prompt for your AI receptionist
-    SYSTEM_PROMPT = (
-        "You are an AI phone receptionist. Respond naturally and concisely. "
-        "Keep responses short — 1–2 sentences max."
-    )
-
     print(f"Caller said: {user_input}")
-
     response_text = ""
     sentences = []
-
+    twiml = VoiceResponse()
     async with openai_client.chat.completions.stream(
         model="gpt-4o-mini",
         messages=[
@@ -151,30 +109,21 @@ async def conversation(request: Request):
         ],
     ) as stream:
         async for event in stream:
-            print("EVENT TYPE:", event.type, "DELTA:", event.delta if hasattr(event,"delta") else "None")  # debug
             if event.type == "content.delta":
                 response_text += event.delta
-                # flush sentences when punctuation appears
                 if re.search(r"[.!?]\s", response_text):
-                    sentences.append(response_text.strip())
+                    sentence = response_text.strip()
+                    twiml.say(sentence, voice="Polly.Joanna")
+                    sentences.append(sentence)
                     response_text = ""
 
-    if response_text.strip():
-        sentences.append(response_text.strip())
-
-
-    twiml = VoiceResponse()
-    print("outputs:",sentences)
-    for sentence in sentences:
-        twiml.say(sentence, voice="Polly.Joanna")  # or use 'alice'
-
+    twiml.say(response_text.strip(), voice="Polly.Joanna")
     twiml.gather(
-        input="speech",
+        input="dtmf speech",
         action="https://autoreceptionist.onrender.com/conversation",
         method="POST",
         timeout=2
     )
-
     print("Sending TwiML:\n", str(twiml))
     return Response(content=str(twiml), media_type="text/xml")
 
