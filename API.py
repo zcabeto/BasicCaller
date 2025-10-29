@@ -121,7 +121,8 @@ async def conversation(request: Request, Digits: str = Form(""), CallSid: str = 
         user_prompt = USER_PROMPT.format(transcript=state['raw_transcript'], last_message=state['raw_transcript'][-1]["message"])
     print(f"Caller said: {user_input}")
     response_text = ""
-    first_sentence = None
+    first_chunk = None
+    max_sentences = 2
     async with openai_client.chat.completions.stream(
         model="gpt-4o-mini",
         messages=[
@@ -132,16 +133,23 @@ async def conversation(request: Request, Digits: str = Form(""), CallSid: str = 
         async for event in stream:
             if event.type == "content.delta":
                 response_text += event.delta
-                # stop as soon as we hit the first sentence
-                if re.search(r"[.!?]\s", response_text):
-                    first_sentence = response_text.strip()
+                matches = re.findall(r"[.!?]\s", response_text)
+                if len(matches) >= max_sentences:
+                    split_point = 0
+                    count = 0
+                    for m in re.finditer(r"[.!?]\s", response_text):
+                        count += 1
+                        if count == max_sentences:
+                            split_point = m.end()
+                            break
+                    first_chunk = response_text[:split_point].strip()
                     break
     resp = VoiceResponse()
-    if first_sentence:
-        await speak(resp,first_sentence)
+    if first_chunk:
+        await speak(resp,first_chunk)
     else:
         await speak(resp,response_text.strip() or "Sorry, I didn't catch that.")
-    if "goodbye" in first_sentence.lower():
+    if "goodbye" in first_chunk.lower():
         return Response(content=str(resp), media_type="text/xml")
     resp.gather(
         input="speech dtmf",
