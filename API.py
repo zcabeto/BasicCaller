@@ -51,15 +51,16 @@ async def serve_audio(filename: str):
     return FileResponse(file_path, media_type="audio/mpeg")
 
 async def speak(resp, text: str):
-    tts_bytes = await openai_client.audio.speech.create(
+    tts_resp = await openai_client.audio.speech.create(
         model="gpt-4o-mini-tts",
         voice="alloy",
         input=text
     )
+    audio_bytes = tts_resp.read()
     file_id = f"{uuid4()}.mp3"
     file_path = f"/tmp/{file_id}"
     with open(file_path, "wb") as f:
-        f.write(tts_bytes)
+        f.write(audio_bytes)
     audio_url = f"https://autoreceptionist.onrender.com/audio/{file_id}"
     resp.play(audio_url)
 
