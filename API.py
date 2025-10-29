@@ -136,9 +136,11 @@ async def conversation(request: Request, Digits: str = Form("")):
                     break
     resp = VoiceResponse()
     if first_sentence:
-        speak(resp,first_sentence, voice="Polly.Joanna")
+        speak(resp,first_sentence)
     else:
-        speak(resp,response_text.strip() or "Sorry, I didn't catch that.", voice="Polly.Joanna")
+        speak(resp,response_text.strip() or "Sorry, I didn't catch that.")
+    if "goodbye" in first_sentence.lower():
+        return Response(content=str(resp), media_type="text/xml")
     resp.gather(
         input="speech dtmf",
         action="https://autoreceptionist.onrender.com/conversation",
