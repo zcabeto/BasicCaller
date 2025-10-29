@@ -11,7 +11,7 @@ import re
 from uuid import uuid4
 from openai import AsyncOpenAI
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT
+from aux import CallData, is_blocked, is_e164, is_rate_limited, log_request, clear_old_issues, generate_summary, verify_api_key, SYSTEM_PROMPT, USER_PROMPT
 
 
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
@@ -108,13 +108,16 @@ def handle_urgent(Digits: str = ""):
     return None
 
 @app.post("/conversation")
-async def conversation(request: Request, Digits: str = Form("")):
+async def conversation(request: Request, Digits: str = Form(""), CallSid: str = Form(...)):
     urgent_response = handle_urgent(Digits)
     if urgent_response:
         return urgent_response
 
     form = await request.form()
     user_input = form.get("SpeechResult", "")
+    with store_lock:
+        state = conversation_state.get(CallSid, {})
+        user_prompt = USER_PROMPT.format(transcript=state['raw_transcript'], last_message=state['raw_transcript'][-1]["message"])
     print(f"Caller said: {user_input}")
     response_text = ""
     first_sentence = None
@@ -122,7 +125,7 @@ async def conversation(request: Request, Digits: str = Form("")):
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input},
+            {"role": "user", "content": user_prompt},
         ],
     ) as stream:
         async for event in stream:
