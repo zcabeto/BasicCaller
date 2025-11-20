@@ -79,11 +79,13 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
 
     openai_ws = None
     try:
+        print("STARTING WEBSOCKET")
         openai_ws = await connect_to_openai_realtime()
         await asyncio.gather(
             handle_twilio_to_openai(websocket, openai_ws, call_sid),
             handle_openai_to_twilio_and_events(openai_ws, websocket, call_sid)
         )
+        print("ENDED WEBSOCKET")
     except (WebSocketDisconnect, Exception):
         pass
     finally:
@@ -111,15 +113,15 @@ async def connect_to_openai_realtime():
         "type": "session.update",
         "session": {
             "modalities": ["text", "audio"],
-            "instructions": SYSTEM_PROMPT,  # Your Riley persona
+            "instructions": SYSTEM_PROMPT,
             "voice": "alloy",
-            "input_audio_format": "pcm16",  # Will convert from mulaw
-            "output_audio_format": "pcm16",  # Will convert to mulaw
+            "input_audio_format": "pcm16",
+            "output_audio_format": "pcm16",
             "input_audio_transcription": {
                 "model": "whisper-1"
             },
             "turn_detection": {
-                "type": "server_vad",  # Voice Activity Detection
+                "type": "server_vad",
                 "threshold": 0.5,
                 "prefix_padding_ms": 300,
                 "silence_duration_ms": 200
