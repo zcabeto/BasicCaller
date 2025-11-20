@@ -71,7 +71,7 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
     
     active_calls[call_sid] = {
         'ws': websocket,
-        'raw_transcript': [],
+        'transcript': [],
         'stream_sid': None,
         'connected': True
     }
@@ -203,18 +203,18 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                                 "media": {"payload": base64.b64encode(mulaw_audio).decode('utf-8')}
                             })
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
-                    transcript = data.get('raw_transcript', '')
+                    transcript = data.get('transcript', '')
                     if transcript:
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['raw_transcript'].append({"role": "caller", "message": transcript})
+                            call_data['transcript'].append({"role": "caller", "message": transcript})
                 elif data['type'] == 'response.text.delta':
                     current_response_text += data.get('delta', '')
                 elif data['type'] == 'response.text.done':
                     if current_response_text:
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['raw_transcript'].append({"role": "bot", "message": current_response_text})
+                            call_data['transcript'].append({"role": "bot", "message": current_response_text})
                         current_response_text = ""
                 elif data['type'] == 'response.function_call_arguments.done':
                     if data.get('name') == "transfer_to_human":
@@ -233,11 +233,11 @@ async def handle_transfer(call_sid: str):
         method="POST"
     )
 
-def cleanup_transcription(raw_transcript: List):
+def cleanup_transcription(transcript: List):
     cleaned = []
-    current_role = raw_transcript[0]["role"]
-    current_message = raw_transcript[0]["message"]
-    for part in raw_transcript[1:]:
+    current_role = transcript[0]["role"]
+    current_message = transcript[0]["message"]
+    for part in transcript[1:]:
         role = part["role"]
         msg = part["message"]
         if role == current_role:
@@ -261,12 +261,12 @@ async def get_issue_type(request: Request):
             print("no state")
             return {"status": "no_state"}
         print(state)
-        raw_transcript = state.get('raw_transcript', [])
-        if not raw_transcript:
+        transcript = state.get('transcript', [])
+        if not transcript:
             print("no transcript")
             return {"status": "no_transcript"}
         
-        cleaned_transcript = cleanup_transcription(raw_transcript)
+        cleaned_transcript = cleanup_transcription(transcript)
         transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in cleaned_transcript]
         transcript_str = "\n".join(transcript_messages)
         summary = await generate_summary(transcript_str)
@@ -278,7 +278,7 @@ async def get_issue_type(request: Request):
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=cleaned_transcript,
+            transcription=cleaned_transcript,
             visited=False,
             timestamp=datetime.utcnow()
         )
