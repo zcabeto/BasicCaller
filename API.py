@@ -37,33 +37,22 @@ async def root():
 @app.post("/voice")
 async def start_call(request: Request):
     """Initial call handler - starts media stream"""
-    # Manually parse form data from Twilio
     form = await request.form()
     CallSid = form.get("CallSid")
     From = form.get("From")
-    To = form.get("To")
-    CallStatus = form.get("CallStatus")
 
-    print(f"Received call: CallSid={CallSid}, From={From}, To={To}, Status={CallStatus}")
-    print(f"All form data: {dict(form)}")
-
-    # Validation
     if not CallSid or not From:
-        print(f"Missing required parameters: CallSid={CallSid}, From={From}")
         resp = VoiceResponse()
         resp.say("Sorry, there was an error processing your call.")
         resp.hangup()
         return Response(content=str(resp), media_type="application/xml")
 
     if not is_e164(From) or is_rate_limited(From) or is_blocked(From):
-        print(f"Call rejected: From={From}, E164={is_e164(From)}, RateLimited={is_rate_limited(From)}, Blocked={is_blocked(From)}")
         resp = VoiceResponse()
         resp.hangup()
         return Response(content=str(resp), media_type="application/xml")
 
-    # Log the request for rate limiting
     log_request(From)
-
     async with store_lock:
         clear_old_issues(issues_store)
 
@@ -76,7 +65,6 @@ async def start_call(request: Request):
     resp.append(start)
     resp.pause(length=3600)
 
-    print(f"Returning TwiML with WebSocket stream for {CallSid}")
     return Response(content=str(resp), media_type="application/xml")
 
 @app.websocket("/media-stream/{call_sid}")
@@ -98,24 +86,16 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
             handle_twilio_to_openai(websocket, openai_ws, call_sid),
             handle_openai_to_twilio_and_events(openai_ws, websocket, call_sid)
         )
-
-    except WebSocketDisconnect:
-        print(f"Call {call_sid} disconnected")
-    except Exception as e:
-        print(f"Error in call {call_sid}: {e}")
+    except (WebSocketDisconnect, Exception):
+        pass
     finally:
-        # Mark as disconnected to prevent further sends
         if call_sid in active_calls:
             active_calls[call_sid]['connected'] = False
-
-        # Close OpenAI WebSocket if still open
         if openai_ws:
             try:
                 await openai_ws.close()
             except:
                 pass
-
-        # Generate summary and cleanup
         await finalize_call(call_sid)
         if call_sid in active_calls:
             del active_calls[call_sid]
@@ -149,69 +129,39 @@ async def connect_to_openai_realtime():
     }
     await openai_ws.send(json.dumps(session_config))
 
-    # Send initial greeting via conversation item
     greeting = "Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can ask to speak to our team at any time to register this as an urgent call. With that out the way, how may I help you today?"
 
-    # Create a conversation item with the greeting
     conversation_item = {
         "type": "conversation.item.create",
         "item": {
             "type": "message",
             "role": "assistant",
-            "content": [
-                {
-                    "type": "text",
-                    "text": greeting
-                }
-            ]
+            "content": [{"type": "text", "text": greeting}]
         }
     }
     await openai_ws.send(json.dumps(conversation_item))
-    print("Sent greeting conversation item")
 
-    # Trigger response to speak the greeting
-    response_create = {
-        "type": "response.create"
-    }
+    response_create = {"type": "response.create"}
     await openai_ws.send(json.dumps(response_create))
-    print("Triggered response.create for greeting")
 
     return openai_ws
 
 def mulaw_to_pcm16(mulaw_data: bytes) -> bytes:
     """Convert mulaw (8kHz) to PCM16 (24kHz)"""
     try:
-        # decode mulaw to linear and resample from 8kHz to 24kHz
         pcm_8k = audioop.ulaw2lin(mulaw_data, 2)
-        pcm_24k, _ = audioop.ratecv(
-            pcm_8k,
-            2,  # Sample width
-            1,  # Channels
-            8000,  # Input rate
-            24000,  # Output rate
-            None
-        )
+        pcm_24k, _ = audioop.ratecv(pcm_8k, 2, 1, 8000, 24000, None)
         return pcm_24k
-    except Exception as e:
-        print(f"Error converting mulaw to PCM16: {e}")
+    except:
         return b''
 
 def pcm16_to_mulaw(pcm_data: bytes) -> bytes:
     """Convert PCM16 (24kHz) to mulaw (8kHz)"""
     try:
-        # resample from 24kHz to 8kHz
-        pcm_8k, _ = audioop.ratecv(
-            pcm_data,
-            2,  # Sample width
-            1,  # Channels
-            24000,  # Input rate
-            8000,  # Output rate
-            None
-        )
+        pcm_8k, _ = audioop.ratecv(pcm_data, 2, 1, 24000, 8000, None)
         mulaw_data = audioop.lin2ulaw(pcm_8k, 2)
         return mulaw_data
-    except Exception as e:
-        print(f"Error converting PCM16 to mulaw: {e}")
+    except:
         return b''
 
 async def handle_twilio_to_openai(twilio_ws: WebSocket, openai_ws, call_sid: str):
@@ -220,128 +170,65 @@ async def handle_twilio_to_openai(twilio_ws: WebSocket, openai_ws, call_sid: str
         async for message in twilio_ws.iter_text():
             try:
                 data = json.loads(message)
-
                 if data['event'] == 'start':
                     active_calls[call_sid]['stream_sid'] = data['start']['streamSid']
-                    print(f"Stream started: {data['start']['streamSid']}")
-
                 elif data['event'] == 'media':
-                    audio_payload = data['media']['payload']
-                    mulaw_audio = base64.b64decode(audio_payload)
+                    mulaw_audio = base64.b64decode(data['media']['payload'])
                     pcm_audio = mulaw_to_pcm16(mulaw_audio)
-
-                    if pcm_audio:  # Only send if conversion succeeded
-                        audio_message = {
+                    if pcm_audio:
+                        await openai_ws.send(json.dumps({
                             "type": "input_audio_buffer.append",
                             "audio": base64.b64encode(pcm_audio).decode('utf-8')
-                        }
-                        await openai_ws.send(json.dumps(audio_message))
-
+                        }))
                 elif data['event'] == 'stop':
-                    print(f"Stream stopped: {call_sid}")
                     break
-            except json.JSONDecodeError as e:
-                print(f"JSON decode error in Twilio message: {e}")
-            except Exception as e:
-                print(f"Error processing Twilio message: {e}")
-    except Exception as e:
-        print(f"Error in Twilio to OpenAI handler: {e}")
+            except:
+                pass
+    except:
+        pass
 
 async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
     """Forward AI's audio from OpenAI to Twilio and handle events"""
     current_response_text = ""
-
     try:
         async for message in openai_ws:
             try:
                 data = json.loads(message)
-
-                # Handle audio streaming
                 if data['type'] == 'response.audio.delta':
                     delta = data.get('delta', '')
                     if delta:
-                        print(f"Received audio delta, length: {len(delta)}")
                         pcm_audio = base64.b64decode(delta)
-                        print(f"Decoded PCM audio, length: {len(pcm_audio)} bytes")
                         mulaw_audio = pcm16_to_mulaw(pcm_audio)
-                        print(f"Converted to mulaw, length: {len(mulaw_audio)} bytes")
-
                         call_info = active_calls.get(call_sid, {})
                         stream_sid = call_info.get('stream_sid')
                         is_connected = call_info.get('connected', False)
-
                         if stream_sid and mulaw_audio and is_connected:
-                            media_message = {
+                            await twilio_ws.send_json({
                                 "event": "media",
                                 "streamSid": stream_sid,
-                                "media": {
-                                    "payload": base64.b64encode(mulaw_audio).decode('utf-8')
-                                }
-                            }
-                            await twilio_ws.send_json(media_message)
-                            print(f"Sent audio to Twilio, stream_sid: {stream_sid}")
-                        else:
-                            print(f"Cannot send audio: stream_sid={stream_sid}, mulaw_len={len(mulaw_audio) if mulaw_audio else 0}")
-
-                elif data['type'] == 'response.audio.done':
-                    print("AI finished speaking")
-
-                # Handle transcription events
+                                "media": {"payload": base64.b64encode(mulaw_audio).decode('utf-8')}
+                            })
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
                     transcript = data.get('transcript', '')
-                    print(f"Caller transcript: {transcript}")
                     if transcript:
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['transcript'].append({
-                                "role": "caller",
-                                "message": transcript
-                            })
-                            print(f"Saved caller transcript. Total messages: {len(call_data['transcript'])}")
-
-                # Handle text response events
+                            call_data['transcript'].append({"role": "caller", "message": transcript})
                 elif data['type'] == 'response.text.delta':
-                    text_delta = data.get('delta', '')
-                    current_response_text += text_delta
-
+                    current_response_text += data.get('delta', '')
                 elif data['type'] == 'response.text.done':
-                    print(f"AI response text: {current_response_text}")
                     if current_response_text:
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['transcript'].append({
-                                "role": "bot",
-                                "message": current_response_text
-                            })
-                            print(f"Saved bot transcript. Total messages: {len(call_data['transcript'])}")
+                            call_data['transcript'].append({"role": "bot", "message": current_response_text})
                         current_response_text = ""
-
-                # Handle function calls
                 elif data['type'] == 'response.function_call_arguments.done':
-                    function_name = data.get('name', '')
-                    if function_name == "transfer_to_human":
+                    if data.get('name') == "transfer_to_human":
                         await handle_transfer(call_sid)
-
-                # Handle errors
-                elif data['type'] == 'error':
-                    error_msg = data.get('error', {})
-                    print(f"OpenAI error: {error_msg}")
-
-                # Log other event types for debugging
-                else:
-                    print(f"OpenAI event: {data['type']}")
-
-            except json.JSONDecodeError as e:
-                print(f"JSON decode error in OpenAI message: {e}")
-            except Exception as e:
-                print(f"Error processing OpenAI message: {e}")
-                import traceback
-                traceback.print_exc()
-    except Exception as e:
-        if "close message" not in str(e).lower():
-            print(f"Error in OpenAI handler: {e}")
-            import traceback
-            traceback.print_exc()
+            except:
+                pass
+    except:
+        pass
 
 async def handle_transfer(call_sid: str):
     """Transfer call to human using Twilio REST API"""
@@ -352,50 +239,32 @@ async def handle_transfer(call_sid: str):
         method="POST"
     )
 
-## POST CALL ACTIVITY - SUM TRANSCRIPTION FOR TICKET
 async def finalize_call(call_sid: str):
     """Store transcript for /end_call webhook"""
     if call_sid in active_calls:
         transcript = active_calls[call_sid].get('transcript', [])
-        print(f"Finalizing call {call_sid}, transcript length: {len(transcript)}")
         async with store_lock:
-            conversation_state[call_sid] = {
-                'raw_transcript': transcript if transcript else [],
-            }
-            print(f"Saved to conversation_state: {len(conversation_state[call_sid]['raw_transcript'])} messages")
-    else:
-        print(f"Call {call_sid} not found in active_calls during finalize")
+            conversation_state[call_sid] = {'raw_transcript': transcript if transcript else []}
 
 @app.post("/end_call")
 async def get_issue_type(request: Request):
-    # Manually parse form data from Twilio
     form = await request.form()
     CallSid = form.get("CallSid")
     From = form.get("From", "Unknown")
-    CallStatus = form.get("CallStatus", "")
 
     async with store_lock:
-        print(f"Call {CallSid} ended with status {CallStatus}")
         state = conversation_state.get(CallSid, {})
-
         if not state:
-            print(f"No state found for {CallSid}")
             return {"status": "no_state"}
 
         raw_transcript = state.get('raw_transcript', [])
-
         if not raw_transcript:
-            print(f"Empty transcript for {CallSid}")
             return {"status": "no_transcript"}
 
-        print(f"Processing transcript with {len(raw_transcript)} messages")
-
-        # Convert transcript list to string for summary
         transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in raw_transcript]
         transcript_str = "\n".join(transcript_messages)
-
         summary = await generate_summary(transcript_str)
-        raw_transcript_text = [ message["message"] for message in raw_transcript ]
+        raw_transcript_text = [message["message"] for message in raw_transcript]
 
         issue_data = CallData(
             name=summary.get('name', From),
@@ -410,7 +279,6 @@ async def get_issue_type(request: Request):
             timestamp=datetime.utcnow()
         )
         issues_store.append(issue_data)
-        print(f"Saved issue for {CallSid}: {summary.get('title', 'Untitled')}")
         return {"status": "saved"}
 
 @app.get("/poll/")
