@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Form
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Form, Request
 from fastapi.responses import Response
 from twilio.twiml.voice_response import VoiceResponse, Start
 from twilio.rest import Client
@@ -35,14 +35,17 @@ async def root():
     return {"status": "ok", "service": "BasicCaller WebSocket"}
 
 @app.post("/voice")
-async def start_call(
-    CallSid: str = Form(None),
-    From: str = Form(None),
-    To: str = Form(None),
-    CallStatus: str = Form(None)
-):
+async def start_call(request: Request):
     """Initial call handler - starts media stream"""
+    # Manually parse form data from Twilio
+    form = await request.form()
+    CallSid = form.get("CallSid")
+    From = form.get("From")
+    To = form.get("To")
+    CallStatus = form.get("CallStatus")
+
     print(f"Received call: CallSid={CallSid}, From={From}, To={To}, Status={CallStatus}")
+    print(f"All form data: {dict(form)}")
 
     # Validation
     if not CallSid or not From:
@@ -313,7 +316,13 @@ async def finalize_call(call_sid: str):
             }
 
 @app.post("/end_call")
-async def get_issue_type(CallSid: str = Form(...), From: str = Form("Unknown", alias="From"), CallStatus: str = Form("")):
+async def get_issue_type(request: Request):
+    # Manually parse form data from Twilio
+    form = await request.form()
+    CallSid = form.get("CallSid")
+    From = form.get("From", "Unknown")
+    CallStatus = form.get("CallStatus", "")
+
     async with store_lock:
         print(f"Call {CallSid} ended with status {CallStatus}")
         state = conversation_state.get(CallSid, {})
