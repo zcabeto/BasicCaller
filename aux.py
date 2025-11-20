@@ -99,7 +99,7 @@ async def generate_summary(transcription_text: str):
     Caller transcription:
     "{transcription_text}"
 
-    Please extract some information from the transcript. 
+    Please extract some information from the transcript. Bear in mind that due to realtime transcription, some messages may be out of order.
     name: full name as given
     company: caller's (NOT ThreatSpike) company name and location if given
     system_info: any information about the specific system the caller works on (if mentioned). If not mentioned, answer "Unknown"
