@@ -239,13 +239,13 @@ def cleanup_transcription(transcript: List):
     return cleaned
 
 @app.post("/end_call")
-async def get_issue_type(request: Request):
+async def end_call(request: Request):
     form = await request.form()
     CallSid = form.get("CallSid")
     From = form.get("From", "Unknown")
 
     async with store_lock:
-        state = active_calls[CallSid]
+        state = active_calls.get(CallSid, None)
         if not state:
             print("no state")
             return {"status": "no_state"}
