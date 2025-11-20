@@ -244,7 +244,7 @@ async def end_call(request: Request):
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=transcript_str,
+            raw_transcription=transcript_messages,
             raw_role_transcription=cleaned_transcript,
             visited=False,
             timestamp=datetime.utcnow()
