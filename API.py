@@ -78,19 +78,13 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
 
     openai_ws = None
     try:
-        print(f"[{call_sid[-4:]}] Connecting to OpenAI...")
         openai_ws = await connect_to_openai_realtime()
-        print(f"[{call_sid[-4:]}] Connected to OpenAI")
         await asyncio.gather(
             handle_twilio_to_openai(websocket, openai_ws, call_sid),
             handle_openai_to_twilio_and_events(openai_ws, websocket, call_sid)
         )
-    except WebSocketDisconnect as e:
-        print(f"[{call_sid[-4:]}] WebSocket disconnected: {e}")
-    except Exception as e:
-        print(f"[{call_sid[-4:]}] Error: {e}")
-        import traceback
-        traceback.print_exc()
+    except (WebSocketDisconnect, Exception):
+        pass
     finally:
         if call_sid in active_calls:
             active_calls[call_sid]['connected'] = False
@@ -99,17 +93,6 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
                 await openai_ws.close()
             except:
                 pass
-        await finalize_call(call_sid)
-        if call_sid in active_calls:
-            del active_calls[call_sid]
-
-async def finalize_call(call_sid: str):
-    """Store transcript for /end_call webhook"""
-    if call_sid in active_calls:
-        transcript = active_calls[call_sid].get('transcript', [])
-        print(f"[{call_sid[-4:]}] Finalizing: {len(transcript)} messages")
-        async with store_lock:
-            conversation_state[call_sid] = {'transcript': transcript}
 
 async def connect_to_openai_realtime():
     """Connect to OpenAI's Realtime API via WebSocket"""
@@ -190,16 +173,11 @@ async def handle_twilio_to_openai(twilio_ws: WebSocket, openai_ws, call_sid: str
 async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
     """Forward AI's audio from OpenAI to Twilio and handle events"""
     current_response_text = ""
-    print(f"[{call_sid[-4:]}] Starting OpenAI event handler")
     try:
         async for message in openai_ws:
             try:
                 data = json.loads(message)
-                # Temporary debug: log all event types
-                event_type = data.get('type', '')
-                if 'response' in event_type or 'conversation' in event_type:
-                    print(f"[{call_sid[-4:]}] Event: {event_type}")
-
+                print(data)
                 if data['type'] == 'response.audio.delta':
                     delta = data.get('delta', '')
                     if delta:
@@ -220,39 +198,22 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                         call_data = active_calls.get(call_sid)
                         if call_data:
                             call_data['transcript'].append({"role": "caller", "message": transcript})
-                            print(f"[{call_sid[-4:]}] Saved CALLER: {transcript[:50]}...")
-                elif data['type'] == 'response.output_item.done':
-                    # Capture bot response from output item (most reliable for audio responses)
-                    item = data.get('item', {})
-                    if item.get('role') == 'assistant':
-                        content = item.get('content', [])
-                        print(f"[{call_sid[-4:]}] output_item content parts: {len(content)}")
-                        for part in content:
-                            print(f"[{call_sid[-4:]}] content part type: {part.get('type')}")
-                            if part.get('type') == 'text':
-                                text = part.get('text', '')
-                                if text:
-                                    call_data = active_calls.get(call_sid)
-                                    if call_data:
-                                        call_data['transcript'].append({"role": "bot", "message": text})
-                                        print(f"[{call_sid[-4:]}] Saved BOT: {text[:50]}...")
-                elif data['type'] == 'response.audio_transcript.done':
-                    # Alternative: capture from audio transcript event
-                    transcript_text = data.get('transcript', '')
-                    if transcript_text:
+                elif data['type'] == 'response.text.delta':
+                    current_response_text += data.get('delta', '')
+                    call_data['transcript'].append({"role": "bot", "message": current_response_text})
+                elif data['type'] == 'response.text.done':
+                    if current_response_text:
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['transcript'].append({"role": "bot", "message": transcript_text})
-                            print(f"[{call_sid[-4:]}] Saved BOT (audio_transcript): {transcript_text[:50]}...")
+                            call_data['transcript'].append({"role": "bot", "message": current_response_text})
+                        current_response_text = ""
                 elif data['type'] == 'response.function_call_arguments.done':
                     if data.get('name') == "transfer_to_human":
                         await handle_transfer(call_sid)
-            except Exception as e:
-                print(f"[{call_sid[-4:]}] Error processing event: {e}")
-    except Exception as e:
-        print(f"[{call_sid[-4:]}] Error in event handler: {e}")
-        import traceback
-        traceback.print_exc()
+            except:
+                pass
+    except:
+        pass
 
 async def handle_transfer(call_sid: str):
     """Transfer call to human using Twilio REST API"""
@@ -286,17 +247,15 @@ async def end_call(request: Request):
     From = form.get("From", "Unknown")
 
     async with store_lock:
-        state = conversation_state.get(CallSid, None)
+        state = active_calls.get(CallSid, None)
         if not state:
-            print(f"[{CallSid[-4:]}] no state in conversation_state")
+            print("no state")
             return {"status": "no_state"}
 
         transcript = state.get('transcript', [])
         if not transcript:
-            print(f"[{CallSid[-4:]}] no transcript")
+            print("no transcript")
             return {"status": "no_transcript"}
-
-        print(f"[{CallSid[-4:]}] Processing {len(transcript)} messages")
         
         #cleaned_transcript = cleanup_transcription(transcript)
         transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in transcript]
