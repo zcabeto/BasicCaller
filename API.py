@@ -17,19 +17,43 @@ from aux import (
 )
 
 app = FastAPI()
+
+# Environment variables
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-app = FastAPI()
+
+# Global state
 conversation_state = {}
 active_calls: Dict[str, Dict] = {}
 issues_store: List[CallData] = []
 store_lock = asyncio.Lock()
 
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {"status": "ok", "service": "BasicCaller WebSocket"}
+
 @app.post("/voice")
-async def start_call(CallSid: str = Form(...), From: str = Form(..., alias="From")):
+async def start_call(
+    CallSid: str = Form(None),
+    From: str = Form(None),
+    To: str = Form(None),
+    CallStatus: str = Form(None)
+):
     """Initial call handler - starts media stream"""
+    print(f"Received call: CallSid={CallSid}, From={From}, To={To}, Status={CallStatus}")
+
+    # Validation
+    if not CallSid or not From:
+        print(f"Missing required parameters: CallSid={CallSid}, From={From}")
+        resp = VoiceResponse()
+        resp.say("Sorry, there was an error processing your call.")
+        resp.hangup()
+        return Response(content=str(resp), media_type="application/xml")
+
     if not is_e164(From) or is_rate_limited(From) or is_blocked(From):
+        print(f"Call rejected: From={From}, E164={is_e164(From)}, RateLimited={is_rate_limited(From)}, Blocked={is_blocked(From)}")
         resp = VoiceResponse()
         resp.hangup()
         return Response(content=str(resp), media_type="application/xml")
@@ -39,7 +63,7 @@ async def start_call(CallSid: str = Form(...), From: str = Form(..., alias="From
 
     async with store_lock:
         clear_old_issues(issues_store)
-    
+
     resp = VoiceResponse()
     start = Start()
     stream = start.stream(
@@ -48,6 +72,8 @@ async def start_call(CallSid: str = Form(...), From: str = Form(..., alias="From
     )
     resp.append(start)
     resp.pause(length=3600)
+
+    print(f"Returning TwiML with WebSocket stream for {CallSid}")
     return Response(content=str(resp), media_type="application/xml")
 
 @app.websocket("/media-stream/{call_sid}")
