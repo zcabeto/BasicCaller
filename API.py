@@ -199,6 +199,7 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                             call_data['transcript'].append({"role": "caller", "message": transcript})
                 elif data['type'] == 'response.text.delta':
                     current_response_text += data.get('delta', '')
+                    call_data['transcript'].append({"role": "bot", "message": current_response_text})
                 elif data['type'] == 'response.text.done':
                     if current_response_text:
                         call_data = active_calls.get(call_sid)
