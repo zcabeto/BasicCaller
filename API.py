@@ -194,7 +194,7 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                             })
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
                     transcript = data.get('transcript', '')
-                    if transcript:
+                    if len(transcript)>0:
                         call_data = active_calls.get(call_sid)
                         if call_data:
                             call_data['transcript'].append({"role": "caller", "message": transcript})
@@ -252,8 +252,8 @@ async def end_call(request: Request):
             print("no transcript")
             return {"status": "no_transcript"}
         
-        #cleaned_transcript = cleanup_transcription(transcript)
-        transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in transcript]
+        cleaned_transcript = cleanup_transcription(transcript)
+        transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in cleaned_transcript]
         transcript_str = "\n".join(transcript_messages)
         summary = await generate_summary(transcript_str)
         issue_data = CallData(
@@ -264,7 +264,7 @@ async def end_call(request: Request):
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=transcript,
+            raw_transcription=cleaned_transcript,
             visited=False,
             timestamp=datetime.utcnow()
         )
