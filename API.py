@@ -39,7 +39,6 @@ async def start_call(request: Request):
     """Initial call handler - starts media stream"""
     form = await request.form()
     CallSid = form.get("CallSid")
-    print(f"CallSid on /voice is {CallSid}")
     From = form.get("From")
 
     if not CallSid or not From:
@@ -72,20 +71,18 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
     
     active_calls[call_sid] = {
         'ws': websocket,
-        'transcript': [],
+        'raw_transcript': [],
         'stream_sid': None,
         'connected': True
     }
 
     openai_ws = None
     try:
-        print("STARTING WEBSOCKET")
         openai_ws = await connect_to_openai_realtime()
         await asyncio.gather(
             handle_twilio_to_openai(websocket, openai_ws, call_sid),
             handle_openai_to_twilio_and_events(openai_ws, websocket, call_sid)
         )
-        print("ENDED WEBSOCKET")
     except (WebSocketDisconnect, Exception):
         pass
     finally:
@@ -96,10 +93,6 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
                 await openai_ws.close()
             except:
                 pass
-        print(f"CallSid on websocket end is {call_sid}")
-        await finalize_call(call_sid)
-        if call_sid in active_calls:
-            del active_calls[call_sid]
 
 async def connect_to_openai_realtime():
     """Connect to OpenAI's Realtime API via WebSocket"""
@@ -210,18 +203,18 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                                 "media": {"payload": base64.b64encode(mulaw_audio).decode('utf-8')}
                             })
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
-                    transcript = data.get('transcript', '')
+                    transcript = data.get('raw_transcript', '')
                     if transcript:
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['transcript'].append({"role": "caller", "message": transcript})
+                            call_data['raw_transcript'].append({"role": "caller", "message": transcript})
                 elif data['type'] == 'response.text.delta':
                     current_response_text += data.get('delta', '')
                 elif data['type'] == 'response.text.done':
                     if current_response_text:
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['transcript'].append({"role": "bot", "message": current_response_text})
+                            call_data['raw_transcript'].append({"role": "bot", "message": current_response_text})
                         current_response_text = ""
                 elif data['type'] == 'response.function_call_arguments.done':
                     if data.get('name') == "transfer_to_human":
@@ -240,25 +233,14 @@ async def handle_transfer(call_sid: str):
         method="POST"
     )
 
-async def finalize_call(call_sid: str):
-    """Store transcript for /end_call webhook"""
-    print(f"CallSid on finalize_call is {call_sid}")
-    if call_sid in active_calls:
-        print(f"{call_sid} is in the active_calls")
-        transcript = active_calls[call_sid].get('transcript', [])
-        async with store_lock:
-            conversation_state[call_sid] = {'raw_transcript': transcript if transcript else []}
-
 @app.post("/end_call")
 async def get_issue_type(request: Request):
     form = await request.form()
     CallSid = form.get("CallSid")
     From = form.get("From", "Unknown")
-    print(f"CallSid on /end_call is {CallSid}")
+
     async with store_lock:
-        transcript = active_calls[CallSid].get('transcript', [])
-        print(transcript)
-        state = conversation_state.get(CallSid, {})
+        state = active_calls[CallSid]
         if not state:
             print("no state")
             return {"status": "no_state"}
@@ -272,7 +254,6 @@ async def get_issue_type(request: Request):
         transcript_str = "\n".join(transcript_messages)
         summary = await generate_summary(transcript_str)
         raw_transcript_text = [message["message"] for message in raw_transcript]
-        print("creating issue data")
         issue_data = CallData(
             name=summary.get('name', From),
             company=summary.get('company', 'no company information'),
