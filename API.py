@@ -123,18 +123,7 @@ async def connect_to_openai_realtime():
     }
     await openai_ws.send(json.dumps(session_config))
 
-    greeting = "Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can ask to speak to our team at any time to register this as an urgent call. With that out the way, how may I help you today?"
-
-    conversation_item = {
-        "type": "conversation.item.create",
-        "item": {
-            "type": "message",
-            "role": "assistant",
-            "content": [{"type": "text", "text": greeting}]
-        }
-    }
-    await openai_ws.send(json.dumps(conversation_item))
-
+    # Trigger initial greeting response - AI will use system prompt
     response_create = {"type": "response.create"}
     await openai_ws.send(json.dumps(response_create))
 
