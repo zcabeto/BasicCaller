@@ -115,7 +115,7 @@ async def connect_to_openai_realtime():
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "OpenAI-Beta": "realtime=v1"
     }
-    openai_ws = await websockets.connect(openai_ws_url, extra_headers=headers)
+    openai_ws = await websockets.connect(openai_ws_url, additional_headers=headers)
     session_config = {
         "type": "session.update",
         "session": {
