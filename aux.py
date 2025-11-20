@@ -27,6 +27,7 @@ class CallData(BaseModel):
     description: str
     priority: str
     raw_transcription: List
+    raw_role_transcription: List
     visited: bool
     timestamp: datetime = datetime.utcnow() 
 
