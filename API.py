@@ -177,6 +177,11 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
         async for message in openai_ws:
             try:
                 data = json.loads(message)
+                # Temporary debug: log all event types
+                event_type = data.get('type', '')
+                if 'response' in event_type or 'conversation' in event_type:
+                    print(f"[{call_sid[-4:]}] Event: {event_type}")
+
                 if data['type'] == 'response.audio.delta':
                     delta = data.get('delta', '')
                     if delta:
@@ -197,27 +202,30 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                         call_data = active_calls.get(call_sid)
                         if call_data:
                             call_data['transcript'].append({"role": "caller", "message": transcript})
-                elif data['type'] == 'response.text.delta':
-                    current_response_text += data.get('delta', '')
-                    call_data['transcript'].append({"role": "bot", "message": current_response_text})
-                elif data['type'] == 'response.text.done':
-                    if current_response_text:
-                        call_data = active_calls.get(call_sid)
-                        if call_data:
-                            call_data['transcript'].append({"role": "bot", "message": current_response_text})
-                        current_response_text = ""
+                            print(f"[{call_sid[-4:]}] Saved CALLER: {transcript[:50]}...")
                 elif data['type'] == 'response.output_item.done':
-                    # Capture bot response from output item (more reliable for audio responses)
+                    # Capture bot response from output item (most reliable for audio responses)
                     item = data.get('item', {})
                     if item.get('role') == 'assistant':
                         content = item.get('content', [])
+                        print(f"[{call_sid[-4:]}] output_item content parts: {len(content)}")
                         for part in content:
+                            print(f"[{call_sid[-4:]}] content part type: {part.get('type')}")
                             if part.get('type') == 'text':
                                 text = part.get('text', '')
                                 if text:
                                     call_data = active_calls.get(call_sid)
                                     if call_data:
                                         call_data['transcript'].append({"role": "bot", "message": text})
+                                        print(f"[{call_sid[-4:]}] Saved BOT: {text[:50]}...")
+                elif data['type'] == 'response.audio_transcript.done':
+                    # Alternative: capture from audio transcript event
+                    transcript_text = data.get('transcript', '')
+                    if transcript_text:
+                        call_data = active_calls.get(call_sid)
+                        if call_data:
+                            call_data['transcript'].append({"role": "bot", "message": transcript_text})
+                            print(f"[{call_sid[-4:]}] Saved BOT (audio_transcript): {transcript_text[:50]}...")
                 elif data['type'] == 'response.function_call_arguments.done':
                     if data.get('name') == "transfer_to_human":
                         await handle_transfer(call_sid)
