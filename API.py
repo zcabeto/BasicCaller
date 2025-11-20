@@ -17,7 +17,6 @@ from aux import (
     clear_old_issues, verify_api_key, log_request
 )
 
-app = FastAPI()
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -26,6 +25,11 @@ conversation_state = {}
 active_calls: Dict[str, Dict] = {}
 issues_store: List[CallData] = []
 store_lock = asyncio.Lock()
+
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {"status": "ok", "service": "BasicCaller WebSocket"}
 
 @app.post("/voice")
 async def start_call(CallSid: str, From: str):
