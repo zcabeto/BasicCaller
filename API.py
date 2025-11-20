@@ -278,7 +278,6 @@ async def end_call(request: Request):
 
 @app.get("/poll/")
 async def poll(authorized: bool = Depends(verify_api_key)):
-    return None # turn off during testing
     """Existing poll endpoint - unchanged"""
     async with store_lock:
         issues_out = issues_store.copy()
