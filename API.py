@@ -252,17 +252,19 @@ async def get_issue_type(request: Request):
     async with store_lock:
         state = conversation_state.get(CallSid, {})
         if not state:
+            print("no state")
             return {"status": "no_state"}
 
         raw_transcript = state.get('raw_transcript', [])
         if not raw_transcript:
+            print("no transcript")
             return {"status": "no_transcript"}
 
         transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in raw_transcript]
         transcript_str = "\n".join(transcript_messages)
         summary = await generate_summary(transcript_str)
         raw_transcript_text = [message["message"] for message in raw_transcript]
-
+        print("creating issue data")
         issue_data = CallData(
             name=summary.get('name', From),
             company=summary.get('company', 'no company information'),
@@ -276,6 +278,7 @@ async def get_issue_type(request: Request):
             timestamp=datetime.utcnow()
         )
         issues_store.append(issue_data)
+        print("data saved")
         return {"status": "saved"}
 
 @app.get("/poll/")
