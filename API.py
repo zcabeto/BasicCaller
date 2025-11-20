@@ -233,6 +233,22 @@ async def handle_transfer(call_sid: str):
         method="POST"
     )
 
+def cleanup_transcription(raw_transcript: List):
+    cleaned = []
+    current_role = raw_transcript[0]["role"]
+    current_message = raw_transcript[0]["message"]
+    for part in raw_transcript[1:]:
+        role = part["role"]
+        msg = part["message"]
+        if role == current_role:
+            current_message += " " + msg
+        else:
+            cleaned.append({"role": current_role, "message": current_message})
+            current_role = role
+            current_message = msg
+    cleaned.append({"role": current_role, "message": current_message})  # push final
+    return cleaned
+
 @app.post("/end_call")
 async def get_issue_type(request: Request):
     form = await request.form()
@@ -244,16 +260,16 @@ async def get_issue_type(request: Request):
         if not state:
             print("no state")
             return {"status": "no_state"}
-
+        print(state)
         raw_transcript = state.get('raw_transcript', [])
         if not raw_transcript:
             print("no transcript")
             return {"status": "no_transcript"}
-
-        transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in raw_transcript]
+        
+        cleaned_transcript = cleanup_transcription(raw_transcript)
+        transcript_messages = [f"{msg['role']}: {msg['message']}" for msg in cleaned_transcript]
         transcript_str = "\n".join(transcript_messages)
         summary = await generate_summary(transcript_str)
-        raw_transcript_text = [message["message"] for message in raw_transcript]
         issue_data = CallData(
             name=summary.get('name', From),
             company=summary.get('company', 'no company information'),
@@ -262,7 +278,7 @@ async def get_issue_type(request: Request):
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=raw_transcript_text,
+            raw_transcription=cleaned_transcript,
             visited=False,
             timestamp=datetime.utcnow()
         )
