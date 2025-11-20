@@ -194,16 +194,16 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                             })
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
                     transcript = data.get('transcript', '')
-                    if len(transcript)>0:
+                    if transcript != '':
                         call_data = active_calls.get(call_sid)
                         if call_data:
-                            call_data['transcript'].append({"role": "bot", "message": current_response_text})
-                            current_response_text = ""
                             call_data['transcript'].append({"role": "caller", "message": transcript})
                 elif data['type'] == 'response.audio_transcript.delta':
-                    response_text = data.get('delta', '')
-                    if len(response_text)>0:
-                        current_response_text += response_text
+                    current_response_text += data.get('delta', '')
+                elif data['type'] == 'response.audio_transcript.done':
+                    if current_response_text != "":
+                            call_data['transcript'].append({"role": "bot", "message": current_response_text})
+                            current_response_text = ""
                 elif data['type'] == 'response.function_call_arguments.done':
                     if data.get('name') == "transfer_to_human":
                         await handle_transfer(call_sid)
