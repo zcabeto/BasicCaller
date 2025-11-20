@@ -187,36 +187,48 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
             try:
                 data = json.loads(message)
                 if data['type'] == 'response.audio.delta':
-                    pcm_audio = base64.b64decode(data.get('delta', ''))
-                    mulaw_audio = pcm16_to_mulaw(pcm_audio)
-                    stream_sid = active_calls[call_sid].get('stream_sid')
-                    if stream_sid and mulaw_audio:
-                        media_message = {
-                            "event": "media",
-                            "streamSid": stream_sid,
-                            "media": {
-                                "payload": base64.b64encode(mulaw_audio).decode('utf-8')
+                    delta = data.get('delta', '')
+                    if delta:
+                        print(f"Received audio delta, length: {len(delta)}")
+                        pcm_audio = base64.b64decode(delta)
+                        print(f"Decoded PCM audio, length: {len(pcm_audio)} bytes")
+                        mulaw_audio = pcm16_to_mulaw(pcm_audio)
+                        print(f"Converted to mulaw, length: {len(mulaw_audio)} bytes")
+                        stream_sid = active_calls.get(call_sid, {}).get('stream_sid')
+                        if stream_sid and mulaw_audio:
+                            media_message = {
+                                "event": "media",
+                                "streamSid": stream_sid,
+                                "media": {
+                                    "payload": base64.b64encode(mulaw_audio).decode('utf-8')
+                                }
                             }
-                        }
-                        await twilio_ws.send_json(media_message)
+                            await twilio_ws.send_json(media_message)
+                            print(f"Sent audio to Twilio, stream_sid: {stream_sid}")
+                        else:
+                            print(f"Cannot send audio: stream_sid={stream_sid}, mulaw_len={len(mulaw_audio) if mulaw_audio else 0}")
                 elif data['type'] == 'response.audio.done':
                     print("AI finished speaking")
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
                     transcript = data.get('transcript', '')
+                    print(f"Caller transcript: {transcript}")
                     if transcript and call_sid in active_calls:
                         active_calls[call_sid]['transcript'].append({
                             "role": "caller",
                             "message": transcript
                         })
+                        print(f"Saved caller transcript. Total messages: {len(active_calls[call_sid]['transcript'])}")
                 elif data['type'] == 'response.text.delta':
                     text_delta = data.get('delta', '')
                     current_response_text += text_delta
                 elif data['type'] == 'response.text.done':
+                    print(f"AI response text: {current_response_text}")
                     if current_response_text and call_sid in active_calls:
                         active_calls[call_sid]['transcript'].append({
                             "role": "bot",
                             "message": current_response_text
                         })
+                        print(f"Saved bot transcript. Total messages: {len(active_calls[call_sid]['transcript'])}")
                         current_response_text = ""
                 elif data['type'] == 'response.function_call_arguments.done':
                     function_name = data.get('name', '')
@@ -225,12 +237,19 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                 elif data['type'] == 'error':
                     error_msg = data.get('error', {})
                     print(f"OpenAI error: {error_msg}")
+                else:
+                    print(f"OpenAI event: {data['type']}")
             except json.JSONDecodeError as e:
                 print(f"JSON decode error in OpenAI message: {e}")
             except Exception as e:
                 print(f"Error processing OpenAI message: {e}")
+                import traceback
+                traceback.print_exc()
     except Exception as e:
-        print(f"Error in OpenAI handler: {e}")
+        if "close message" not in str(e).lower():
+            print(f"Error in OpenAI handler: {e}")
+            import traceback
+            traceback.print_exc()
 
 async def handle_transfer(call_sid: str):
     """Transfer call to human using Twilio REST API"""
