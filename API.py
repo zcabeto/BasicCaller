@@ -39,6 +39,7 @@ async def start_call(request: Request):
     """Initial call handler - starts media stream"""
     form = await request.form()
     CallSid = form.get("CallSid")
+    print(f"CallSid on /voice is {CallSid}")
     From = form.get("From")
 
     if not CallSid or not From:
@@ -93,6 +94,7 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
                 await openai_ws.close()
             except:
                 pass
+        print(f"CallSid on websocket end is {call_sid}")
         await finalize_call(call_sid)
         if call_sid in active_calls:
             del active_calls[call_sid]
@@ -238,7 +240,9 @@ async def handle_transfer(call_sid: str):
 
 async def finalize_call(call_sid: str):
     """Store transcript for /end_call webhook"""
+    print(f"CallSid on finalize_call is {call_sid}")
     if call_sid in active_calls:
+        print(f"{call_sid} is in the active_calls")
         transcript = active_calls[call_sid].get('transcript', [])
         async with store_lock:
             conversation_state[call_sid] = {'raw_transcript': transcript if transcript else []}
