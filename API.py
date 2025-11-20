@@ -177,7 +177,6 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
         async for message in openai_ws:
             try:
                 data = json.loads(message)
-                print(data['type'])
                 if data['type'] == 'response.audio.delta':
                     delta = data.get('delta', '')
                     if delta:
