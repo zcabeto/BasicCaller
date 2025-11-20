@@ -66,8 +66,10 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
     active_calls[call_sid] = {
         'ws': websocket,
         'transcript': [],
-        'stream_sid': None
+        'stream_sid': None,
+        'connected': True
     }
+    openai_ws = None
     try:
         openai_ws = await connect_to_openai_realtime()
         await asyncio.gather(
@@ -79,7 +81,13 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
     except Exception as e:
         print(f"Error in call {call_sid}: {e}")
     finally:
-        # Generate summary and cleanup
+        if call_sid in active_calls:
+            active_calls[call_sid]['connected'] = False
+        if openai_ws:
+            try:
+                await openai_ws.close()
+            except:
+                pass
         await finalize_call(call_sid)
         if call_sid in active_calls:
             del active_calls[call_sid]
@@ -194,8 +202,10 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                         print(f"Decoded PCM audio, length: {len(pcm_audio)} bytes")
                         mulaw_audio = pcm16_to_mulaw(pcm_audio)
                         print(f"Converted to mulaw, length: {len(mulaw_audio)} bytes")
-                        stream_sid = active_calls.get(call_sid, {}).get('stream_sid')
-                        if stream_sid and mulaw_audio:
+                        call_info = active_calls.get(call_sid, {})
+                        stream_sid = call_info.get('stream_sid')
+                        is_connected = call_info.get('connected', False)
+                        if stream_sid and mulaw_audio and is_connected:
                             media_message = {
                                 "event": "media",
                                 "streamSid": stream_sid,
@@ -264,10 +274,15 @@ async def handle_transfer(call_sid: str):
 async def finalize_call(call_sid: str):
     """Store transcript for /end_call webhook"""
     if call_sid in active_calls:
+        transcript = active_calls[call_sid].get('transcript', [])
+        print(f"Finalizing call {call_sid}, transcript length: {len(transcript)}")
         async with store_lock:
             conversation_state[call_sid] = {
-                'raw_transcript': active_calls[call_sid]['transcript'],
+                'raw_transcript': transcript if transcript else [],
             }
+            print(f"Saved to conversation_state: {len(conversation_state[call_sid]['raw_transcript'])} messages")
+    else:
+        print(f"Call {call_sid} not found in active_calls during finalize")
 
 @app.post("/end_call")
 async def end_call(request: Request):
