@@ -1,8 +1,7 @@
 import json
 import re
 import os
-import httpx
-import tempfile
+import audioop
 from collections import defaultdict, deque
 from typing import List
 from fastapi import Header, HTTPException
@@ -75,6 +74,24 @@ async def summary_prompt(prompt: str):
         print(f"OpenAI error: {e}")
         return "fail"
     return resp.choices[0].message.content.strip()
+
+def mulaw_to_pcm16(mulaw_data: bytes) -> bytes:
+    """Convert mulaw (8kHz) to PCM16 (24kHz)"""
+    try:
+        pcm_8k = audioop.ulaw2lin(mulaw_data, 2)
+        pcm_24k, _ = audioop.ratecv(pcm_8k, 2, 1, 8000, 24000, None)
+        return pcm_24k
+    except:
+        return b''
+
+def pcm16_to_mulaw(pcm_data: bytes) -> bytes:
+    """Convert PCM16 (24kHz) to mulaw (8kHz)"""
+    try:
+        pcm_8k, _ = audioop.ratecv(pcm_data, 2, 1, 24000, 8000, None)
+        mulaw_data = audioop.lin2ulaw(pcm_8k, 2)
+        return mulaw_data
+    except:
+        return b''
 
 async def generate_summary(transcription_text: str):
     transcription_text = transcription_text[:MAX_TRANSCRIPT_CHARS]
@@ -185,7 +202,7 @@ DO NOT repeatedly confirm their issue with them.
 
 5. End the Call
 Inform the caller that their information has been retrieved and thank them for keeping us aware of any issues they encounter. Check that they have no other issues to report before considering ending the call. 
-Do not end the call until you have some kind of indication from the caller that they are happy for the call to end. When you do, tell them "Goodbye"
+Do not end the call until you have some kind of indication from the caller that they are happy for the call to end. When you do, you MUST tell them "Goodbye"
                  
 ## For Scheduling Questions
 1. Assume the caller's questions are correctly informed and that you can pass on their question to the team.
@@ -201,6 +218,9 @@ Inform the caller that the relevant information alongside the user's name will b
 
 ## Any other Questions
 Be open to attempting to help with any other questions but reassure that you are specifically meant for Threat Spike operations support.
+
+## Transferring a call
+If the user asks to transfer the call to a real person, let them know that you can do that and say "transferring now"
 
 ## Knowledge Base
 
