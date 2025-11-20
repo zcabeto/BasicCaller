@@ -254,8 +254,10 @@ async def get_issue_type(request: Request):
     form = await request.form()
     CallSid = form.get("CallSid")
     From = form.get("From", "Unknown")
-
+    print(f"CallSid on /end_call is {CallSid}")
     async with store_lock:
+        transcript = active_calls[CallSid].get('transcript', [])
+        print(transcript)
         state = conversation_state.get(CallSid, {})
         if not state:
             print("no state")
