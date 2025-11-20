@@ -94,8 +94,7 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
         openai_ws = await connect_to_openai_realtime()
         await asyncio.gather(
             handle_twilio_to_openai(websocket, openai_ws, call_sid),
-            handle_openai_to_twilio(openai_ws, websocket, call_sid),
-            handle_openai_events(openai_ws, call_sid)
+            handle_openai_to_twilio_and_events(openai_ws, websocket, call_sid)
         )
         
     except WebSocketDisconnect:
@@ -220,19 +219,22 @@ async def handle_twilio_to_openai(twilio_ws: WebSocket, openai_ws, call_sid: str
     except Exception as e:
         print(f"Error in Twilio to OpenAI handler: {e}")
 
-async def handle_openai_to_twilio(openai_ws, twilio_ws: WebSocket, call_sid: str):
-    """Forward AI's audio from OpenAI to Twilio"""
+async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
+    """Forward AI's audio from OpenAI to Twilio and handle events"""
+    current_response_text = ""
+
     try:
         async for message in openai_ws:
             try:
                 data = json.loads(message)
 
+                # Handle audio streaming
                 if data['type'] == 'response.audio.delta':
                     pcm_audio = base64.b64decode(data.get('delta', ''))
                     mulaw_audio = pcm16_to_mulaw(pcm_audio)
 
                     stream_sid = active_calls[call_sid].get('stream_sid')
-                    if stream_sid and mulaw_audio:  # Only send if we have stream_sid and valid audio
+                    if stream_sid and mulaw_audio:
                         media_message = {
                             "event": "media",
                             "streamSid": stream_sid,
@@ -241,25 +243,12 @@ async def handle_openai_to_twilio(openai_ws, twilio_ws: WebSocket, call_sid: str
                             }
                         }
                         await twilio_ws.send_json(media_message)
+
                 elif data['type'] == 'response.audio.done':
                     print("AI finished speaking")
-            except json.JSONDecodeError as e:
-                print(f"JSON decode error in OpenAI message: {e}")
-            except Exception as e:
-                print(f"Error processing OpenAI message: {e}")
-    except Exception as e:
-        print(f"Error in OpenAI to Twilio handler: {e}")
 
-async def handle_openai_events(openai_ws, call_sid: str):
-    """Handle OpenAI events like transcripts, function calls, etc."""
-    current_response_text = ""
-
-    try:
-        async for message in openai_ws:
-            try:
-                data = json.loads(message)
-
-                if data['type'] == 'conversation.item.input_audio_transcription.completed':
+                # Handle transcription events
+                elif data['type'] == 'conversation.item.input_audio_transcription.completed':
                     transcript = data.get('transcript', '')
                     if transcript and call_sid in active_calls:
                         active_calls[call_sid]['transcript'].append({
@@ -267,13 +256,12 @@ async def handle_openai_events(openai_ws, call_sid: str):
                             "message": transcript
                         })
 
+                # Handle text response events
                 elif data['type'] == 'response.text.delta':
-                    # Accumulate text deltas
                     text_delta = data.get('delta', '')
                     current_response_text += text_delta
 
                 elif data['type'] == 'response.text.done':
-                    # Save complete response when done
                     if current_response_text and call_sid in active_calls:
                         active_calls[call_sid]['transcript'].append({
                             "role": "bot",
@@ -281,21 +269,23 @@ async def handle_openai_events(openai_ws, call_sid: str):
                         })
                         current_response_text = ""
 
+                # Handle function calls
                 elif data['type'] == 'response.function_call_arguments.done':
                     function_name = data.get('name', '')
                     if function_name == "transfer_to_human":
                         await handle_transfer(call_sid)
 
+                # Handle errors
                 elif data['type'] == 'error':
                     error_msg = data.get('error', {})
                     print(f"OpenAI error: {error_msg}")
 
             except json.JSONDecodeError as e:
-                print(f"JSON decode error in OpenAI events: {e}")
+                print(f"JSON decode error in OpenAI message: {e}")
             except Exception as e:
-                print(f"Error processing OpenAI event: {e}")
+                print(f"Error processing OpenAI message: {e}")
     except Exception as e:
-        print(f"Error in OpenAI events handler: {e}")
+        print(f"Error in OpenAI handler: {e}")
 
 async def handle_transfer(call_sid: str):
     """Transfer call to human using Twilio REST API"""
