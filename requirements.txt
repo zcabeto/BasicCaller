@@ -1,6 +1,8 @@
-fastapi
-uvicorn
-twilio
-python-multipart
-pydantic
-openai
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+websockets==12.0
+python-multipart==0.0.6
+twilio==8.10.0
+openai==1.3.0
+pydantic==2.5.0
+python-dotenv==1.0.0
