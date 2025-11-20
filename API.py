@@ -260,7 +260,7 @@ async def get_issue_type(request: Request):
         if not state:
             print("no state")
             return {"status": "no_state"}
-        print(state)
+
         transcript = state.get('transcript', [])
         if not transcript:
             print("no transcript")
@@ -278,7 +278,7 @@ async def get_issue_type(request: Request):
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            transcription=cleaned_transcript,
+            raw_transcription=cleaned_transcript,
             visited=False,
             timestamp=datetime.utcnow()
         )
