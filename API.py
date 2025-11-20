@@ -57,13 +57,10 @@ async def start_call(request: Request):
         clear_old_issues(issues_store)
 
     resp = VoiceResponse()
-    start = Start()
-    stream = start.stream(
-        url=f"wss://autoreceptionist.onrender.com/media-stream/{CallSid}",
-        track="both_tracks"
+    connect = resp.connect()
+    connect.stream(
+        url=f"wss://autoreceptionist.onrender.com/media-stream/{CallSid}"
     )
-    resp.append(start)
-    resp.pause(length=3600)
 
     return Response(content=str(resp), media_type="application/xml")
 
