@@ -37,7 +37,7 @@ async def start_call(request: Request):
     form = await request.form()
     CallSid = form.get("CallSid")
     From = form.get("From")
-
+    print(f"Start call {CallSid}")
     if not CallSid or not From:
         resp = VoiceResponse()
         resp.say("Sorry, there was an error processing your call.")
@@ -220,6 +220,7 @@ async def end_call(request: Request):
     form = await request.form()
     CallSid = form.get("CallSid")
     From = form.get("From", "Unknown")
+    print(f"Ended call {CallSid}")
 
     async with store_lock:
         state = active_calls.get(CallSid, None)
@@ -243,7 +244,8 @@ async def end_call(request: Request):
             title=summary['title'],
             description=summary['description'],
             priority=summary['priority'],
-            raw_transcription=cleaned_transcript,
+            raw_transcription=transcript_str,
+            raw_role_transcription=cleaned_transcript,
             visited=False,
             timestamp=datetime.utcnow()
         )
@@ -255,8 +257,7 @@ async def end_call(request: Request):
 async def poll(authorized: bool = Depends(verify_api_key)):
     """Existing poll endpoint - unchanged"""
     async with store_lock:
-        issues_out = issues_store.copy()
         for issue in issues_store:
             issue.visited = True
         clear_old_issues(issues_store)
-    return {"issues": issues_out}
+    return {"issues": issues_store}
