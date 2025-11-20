@@ -6,24 +6,21 @@ import json
 import base64
 import asyncio
 import websockets
-import audioop
 from typing import Dict, List
 import os
 from datetime import datetime
 from aux import (
     is_e164, is_rate_limited, is_blocked, log_request,
     CallData, SYSTEM_PROMPT, generate_summary,
-    clear_old_issues, verify_api_key
+    clear_old_issues, verify_api_key, pcm16_to_mulaw, mulaw_to_pcm16
 )
 
 app = FastAPI()
 
-# Environment variables
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-# Global state
 conversation_state = {}
 active_calls: Dict[str, Dict] = {}
 issues_store: List[CallData] = []
@@ -51,37 +48,32 @@ async def start_call(request: Request):
         resp = VoiceResponse()
         resp.hangup()
         return Response(content=str(resp), media_type="application/xml")
-
     log_request(From)
     async with store_lock:
         clear_old_issues(issues_store)
-
     resp = VoiceResponse()
     connect = resp.connect()
     connect.stream(
         url=f"wss://autoreceptionist.onrender.com/media-stream/{CallSid}"
     )
-
     return Response(content=str(resp), media_type="application/xml")
 
 @app.websocket("/media-stream/{call_sid}")
 async def media_stream_handler(websocket: WebSocket, call_sid: str):
     """Main WebSocket handler for realtime audio"""
     await websocket.accept()
-    
     active_calls[call_sid] = {
         'ws': websocket,
         'transcript': [],
         'stream_sid': None,
         'connected': True
     }
-
     openai_ws = None
     try:
         openai_ws = await connect_to_openai_realtime()
         await asyncio.gather(
-            handle_twilio_to_openai(websocket, openai_ws, call_sid),
-            handle_openai_to_twilio_and_events(openai_ws, websocket, call_sid)
+            stream_in_audio(websocket, openai_ws, call_sid),
+            data_stream_events(openai_ws, websocket, call_sid)
         )
     except (WebSocketDisconnect, Exception):
         pass
@@ -122,32 +114,11 @@ async def connect_to_openai_realtime():
         }
     }
     await openai_ws.send(json.dumps(session_config))
-
-    # Trigger initial greeting response - AI will use system prompt
     response_create = {"type": "response.create"}
     await openai_ws.send(json.dumps(response_create))
-
     return openai_ws
 
-def mulaw_to_pcm16(mulaw_data: bytes) -> bytes:
-    """Convert mulaw (8kHz) to PCM16 (24kHz)"""
-    try:
-        pcm_8k = audioop.ulaw2lin(mulaw_data, 2)
-        pcm_24k, _ = audioop.ratecv(pcm_8k, 2, 1, 8000, 24000, None)
-        return pcm_24k
-    except:
-        return b''
-
-def pcm16_to_mulaw(pcm_data: bytes) -> bytes:
-    """Convert PCM16 (24kHz) to mulaw (8kHz)"""
-    try:
-        pcm_8k, _ = audioop.ratecv(pcm_data, 2, 1, 24000, 8000, None)
-        mulaw_data = audioop.lin2ulaw(pcm_8k, 2)
-        return mulaw_data
-    except:
-        return b''
-
-async def handle_twilio_to_openai(twilio_ws: WebSocket, openai_ws, call_sid: str):
+async def stream_in_audio(twilio_ws: WebSocket, openai_ws, call_sid: str):
     """Forward caller's audio from Twilio to OpenAI"""
     try:
         async for message in twilio_ws.iter_text():
@@ -170,7 +141,7 @@ async def handle_twilio_to_openai(twilio_ws: WebSocket, openai_ws, call_sid: str
     except:
         pass
 
-async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
+async def data_stream_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
     """Forward AI's audio from OpenAI to Twilio and handle events"""
     current_response_text = ""
     try:
@@ -178,6 +149,7 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
             try:
                 data = json.loads(message)
                 if data['type'] == 'response.audio.delta':
+                    # audio stream read out in realtime
                     delta = data.get('delta', '')
                     if delta:
                         pcm_audio = base64.b64decode(delta)
@@ -192,29 +164,36 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                                 "media": {"payload": base64.b64encode(mulaw_audio).decode('utf-8')}
                             })
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
+                    # receive user input
                     transcript = data.get('transcript', '')
                     if transcript != '':
                         call_data = active_calls.get(call_sid)
                         if call_data:
                             call_data['transcript'].append({"role": "caller", "message": transcript})
                 elif data['type'] == 'response.audio_transcript.delta':
+                    # parts of AI output transcription
                     current_response_text += data.get('delta', '')
                 elif data['type'] == 'response.audio_transcript.done':
+                    # collate full AI output transcription
                     if current_response_text != "":
                             call_data['transcript'].append({"role": "bot", "message": current_response_text})
                             current_response_text = ""
-                elif data['type'] == 'response.function_call_arguments.done':
-                    if data.get('name') == "transfer_to_human":
-                        await handle_transfer(call_sid)
+                if "transferring" in current_response_text.lower():
+                    await handle_transfer(call_sid)
+                if "goodbye" in current_response_text.lower():
+                    await hangup_call(call_sid)
             except:
                 pass
     except:
         pass
+    
+async def hangup_call(call_sid: str):
+    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    client.calls(call_sid).update(status="completed")
 
 async def handle_transfer(call_sid: str):
     """Transfer call to human using Twilio REST API"""
     client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    
     client.calls(call_sid).update(
         url="http://twimlets.com/forward?PhoneNumber=+447873665370",
         method="POST"
@@ -247,7 +226,6 @@ async def end_call(request: Request):
         if not state:
             print("no state")
             return {"status": "no_state"}
-
         transcript = state.get('transcript', [])
         if not transcript:
             print("no transcript")
