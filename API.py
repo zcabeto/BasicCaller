@@ -206,6 +206,18 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                         if call_data:
                             call_data['transcript'].append({"role": "bot", "message": current_response_text})
                         current_response_text = ""
+                elif data['type'] == 'response.output_item.done':
+                    # Capture bot response from output item (more reliable for audio responses)
+                    item = data.get('item', {})
+                    if item.get('role') == 'assistant':
+                        content = item.get('content', [])
+                        for part in content:
+                            if part.get('type') == 'text':
+                                text = part.get('text', '')
+                                if text:
+                                    call_data = active_calls.get(call_sid)
+                                    if call_data:
+                                        call_data['transcript'].append({"role": "bot", "message": text})
                 elif data['type'] == 'response.function_call_arguments.done':
                     if data.get('name') == "transfer_to_human":
                         await handle_transfer(call_sid)
