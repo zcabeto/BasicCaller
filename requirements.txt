@@ -6,3 +6,4 @@ twilio==9.3.7
 openai==1.55.3
 pydantic==2.10.3
 python-dotenv==1.0.1
+audioop-lts==0.2.1
