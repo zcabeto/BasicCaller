@@ -149,17 +149,32 @@ async def connect_to_openai_realtime():
     }
     await openai_ws.send(json.dumps(session_config))
 
-    # Send initial greeting message
+    # Send initial greeting via conversation item
     greeting = "Thank you for calling Threat Spike Labs. This is Riley, your operations assistant. Just to let you know you can ask to speak to our team at any time to register this as an urgent call. With that out the way, how may I help you today?"
 
-    greeting_message = {
-        "type": "response.create",
-        "response": {
-            "modalities": ["text", "audio"],
-            "instructions": f"Start the conversation by saying: {greeting}"
+    # Create a conversation item with the greeting
+    conversation_item = {
+        "type": "conversation.item.create",
+        "item": {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": greeting
+                }
+            ]
         }
     }
-    await openai_ws.send(json.dumps(greeting_message))
+    await openai_ws.send(json.dumps(conversation_item))
+    print("Sent greeting conversation item")
+
+    # Trigger response to speak the greeting
+    response_create = {
+        "type": "response.create"
+    }
+    await openai_ws.send(json.dumps(response_create))
+    print("Triggered response.create for greeting")
 
     return openai_ws
 
@@ -275,12 +290,14 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
                 elif data['type'] == 'conversation.item.input_audio_transcription.completed':
                     transcript = data.get('transcript', '')
                     print(f"Caller transcript: {transcript}")
-                    if transcript and call_sid in active_calls:
-                        active_calls[call_sid]['transcript'].append({
-                            "role": "caller",
-                            "message": transcript
-                        })
-                        print(f"Saved caller transcript. Total messages: {len(active_calls[call_sid]['transcript'])}")
+                    if transcript:
+                        call_data = active_calls.get(call_sid)
+                        if call_data:
+                            call_data['transcript'].append({
+                                "role": "caller",
+                                "message": transcript
+                            })
+                            print(f"Saved caller transcript. Total messages: {len(call_data['transcript'])}")
 
                 # Handle text response events
                 elif data['type'] == 'response.text.delta':
@@ -289,12 +306,14 @@ async def handle_openai_to_twilio_and_events(openai_ws, twilio_ws: WebSocket, ca
 
                 elif data['type'] == 'response.text.done':
                     print(f"AI response text: {current_response_text}")
-                    if current_response_text and call_sid in active_calls:
-                        active_calls[call_sid]['transcript'].append({
-                            "role": "bot",
-                            "message": current_response_text
-                        })
-                        print(f"Saved bot transcript. Total messages: {len(active_calls[call_sid]['transcript'])}")
+                    if current_response_text:
+                        call_data = active_calls.get(call_sid)
+                        if call_data:
+                            call_data['transcript'].append({
+                                "role": "bot",
+                                "message": current_response_text
+                            })
+                            print(f"Saved bot transcript. Total messages: {len(call_data['transcript'])}")
                         current_response_text = ""
 
                 # Handle function calls
