@@ -63,13 +63,11 @@ async def start_call(request: Request):
 async def media_stream_handler(websocket: WebSocket, call_sid: str):
     """Main WebSocket handler for realtime audio"""
     await websocket.accept()
-    
     active_calls[call_sid] = {
         'ws': websocket,
         'transcript': [],
         'stream_sid': None
     }
-    
     try:
         openai_ws = await connect_to_openai_realtime()
         await asyncio.gather(
@@ -77,7 +75,6 @@ async def media_stream_handler(websocket: WebSocket, call_sid: str):
             handle_openai_to_twilio(openai_ws, websocket, call_sid),
             handle_openai_events(openai_ws, call_sid)
         )
-        
     except WebSocketDisconnect:
         print(f"Call {call_sid} disconnected")
     except Exception as e:
@@ -95,7 +92,7 @@ async def connect_to_openai_realtime():
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "OpenAI-Beta": "realtime=v1"
     }
-    openai_ws = await websockets.connect(openai_ws_url, extra_headers=headers)
+    openai_ws = await websockets.connect(openai_ws_url, additional_headers=headers)
     session_config = {
         "type": "session.update",
         "session": {
