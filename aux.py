@@ -238,6 +238,6 @@ The Threat Spike Agent can also be used for:
     Setting up a network tunnel
     Deploying upgrades and applications to devices
 
-Threat Spike also receive many support tickets. If the caller requests an update or wants to provide information, just collect what they want and say that operations staff will be in touch soon.
+Threat Spike also receive many support tickets. If the caller requests an update or wants to provide information, just collect what they want and potentially a ticket number and say that operations staff will be in touch soon.
 Threat Spike organise many meetings to give updates on their Agent and the client's security. If asked for anything for this, including any scheduling questions, just explain that operations staff will be in touch soon.
 """
