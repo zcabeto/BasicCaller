@@ -173,14 +173,14 @@ async def data_stream_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
                 elif data['type'] == 'response.audio_transcript.delta':
                     # parts of AI output transcription
                     current_response_text += data.get('delta', '')
-                elif data['type'] == 'response.audio.done':
+                elif data['type'] == 'response.done':
                     # collate full AI output transcription
                     if current_response_text != "":
                             call_data['transcript'].append({"role": "bot", "message": current_response_text})
                             current_response_text = ""
-                if "transferring" in current_response_text.lower():
+                if "transferring" in call_data['transcript'][-1]["message"].lower():
                     await handle_transfer(call_sid)
-                if "goodbye" in current_response_text.lower():
+                if "goodbye" in call_data['transcript'][-1]["message"].lower():
                     await hangup_call(call_sid)
             except:
                 pass
