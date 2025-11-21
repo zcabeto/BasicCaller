@@ -181,7 +181,7 @@ async def data_stream_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
                 if "transferring" in call_data['transcript'][-1]["message"].lower():
                     await handle_transfer(call_sid)
                 if "goodbye" in call_data['transcript'][-1]["message"].lower():
-                    await asyncio.sleep(0.75)
+                    await asyncio.sleep(4)
                     await hangup_call(call_sid)
             except:
                 pass
