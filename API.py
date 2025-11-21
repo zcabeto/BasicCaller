@@ -134,7 +134,7 @@ async def connect_to_openai_realtime():
                 "type": "server_vad",
                 "threshold": 0.5,
                 "prefix_padding_ms": 300,
-                "silence_duration_ms": 200
+                "silence_duration_ms": 500
             }
         }
     }
