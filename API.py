@@ -174,7 +174,7 @@ async def data_stream_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
                 elif data['type'] == 'response.audio_transcript.delta':
                     # parts of AI output transcription
                     current_response_text += data.get('delta', '')
-                elif data['type'] == 'response.done':
+                elif data['type'] == 'input_audio_buffer.speech_stopped':
                     # collate full AI output transcription
                     if current_response_text != "":
                             call_data['transcript'].append({"role": "bot", "message": current_response_text})
