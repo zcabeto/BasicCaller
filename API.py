@@ -148,6 +148,7 @@ async def data_stream_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
         async for message in openai_ws:
             try:
                 data = json.loads(message)
+                print(f"TYPE: {data['type']}")
                 if data['type'] == 'response.audio.delta':
                     # audio stream read out in realtime
                     delta = data.get('delta', '')
@@ -181,6 +182,7 @@ async def data_stream_events(openai_ws, twilio_ws: WebSocket, call_sid: str):
                 if "transferring" in call_data['transcript'][-1]["message"].lower():
                     await handle_transfer(call_sid)
                 if "goodbye" in call_data['transcript'][-1]["message"].lower():
+                    print("SAYING GOODBYE")
                     await hangup_call(call_sid)
             except:
                 pass
