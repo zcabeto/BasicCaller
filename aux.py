@@ -203,7 +203,7 @@ DO NOT repeatedly confirm their issue with them.
 
 5. End the Call
 Inform the caller that their information has been retrieved and thank them for keeping us aware of any issues they encounter. Check that they have no other issues to report before considering ending the call. 
-Do not end the call until you have some kind of indication from the caller that they are happy for the call to end. When you do, you MUST tell them "Goodbye"
+Do not end the call until you have some kind of indication from the caller that they are happy for the call to end. When you do, say ONLY "Alright, thanks for reaching out and please call again if you need. Goodbye."
 DO NOT say the word "Goodbye" until this end of call point as it will end the call abruptly and early
                  
 ## For Scheduling Questions
